@@ -1,0 +1,22 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ template "eric-oss-csit.name" . }}-read
+  labels:
+  {{- include "charts.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - ""
+  - apps
+  - batch
+  - extensions
+  resources:
+  - pods
+  - deployments
+  - deployments/status
+  - jobs
+  - jobs/status
+  verbs:
+  - get
+  - watch
+  - list

@@ -1,0 +1,151 @@
+#
+# COPYRIGHT Ericsson Software Technology 2022
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Software Technology Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Software Technology Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+
+documents:
+  - name: "API_Documentation"
+    files:
+      - ../doc/API_Documentation/API_Documentation.md
+  - name: "Application_Developers_Guide"
+    default: true
+    files:
+      - ../doc/Application_Developers_Guide/Application_Developers_Guide.md
+      - ../doc/Application_Developers_Guide/acm-tosca.yaml
+  - name: "Defining_Automation_Compositions"
+    files:
+      - ../doc/Application_Developers_Guide/Defining_Automation_Compositions.md
+      - ../doc/Application_Developers_Guide/standard-acme.png
+      - ../doc/Application_Developers_Guide/acm-node-template.png
+      - ../doc/Application_Developers_Guide/gentle-guidance-acm.png
+      - ../doc/Application_Developers_Guide/fundamental-concepts.png
+  - name: "ACM_States"
+    files:
+      - ../doc/Application_Developers_Guide/acm-states/AcElementInstanceStatesOnPpnt.png
+      - ../doc/Application_Developers_Guide/acm-states/AcElementInstanceStatesOnRuntime.png
+      - ../doc/Application_Developers_Guide/acm-states/AcElementTypeStatesOnPpnt.png
+      - ../doc/Application_Developers_Guide/acm-states/AcElementTypeStatesOnRuntime.png
+      - ../doc/Application_Developers_Guide/acm-states/AcInstanceStates.png
+      - ../doc/Application_Developers_Guide/acm-states/AcTypeStates.png
+      - ../doc/Application_Developers_Guide/acm-states/ParticipantStates.png
+      - ../doc/Application_Developers_Guide/Acm_States.md
+  - name: "Automation_Composition_Participants"
+    files:
+      - ../doc/Application_Developers_Guide/participants.png
+      - ../doc/Application_Developers_Guide/Automation_Composition_Participants.md
+  - name: "Automation_Composition_Runtime"
+    files:
+      - ../doc/Application_Developers_Guide/Automation_Composition_Runtime.md
+  - name: "Participant_Developer_Guide"
+    files:
+      - ../doc/Application_Developers_Guide/Participant_Developer_Guide.md
+  - name: "Participant_Intermediary"
+    files:
+      - ../doc/Application_Developers_Guide/Participant_Intermediary.md
+  - name: "Participant_Protocol"
+    files:
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/acm-depriming.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/acm-monitoring.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/acm-priming.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/acm-state-change.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/acm-state-change-msg.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/acm-update.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/acm-update-msg.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/participant-deregistration.png
+      - ../doc/Application_Developers_Guide/acm-participants-protocol/participant-registering.png
+      - ../doc/Application_Developers_Guide/acm-states/AcElementInstanceStatesOnPpnt.png
+      - ../doc/Application_Developers_Guide/acm-states/AcElementInstanceStatesOnRuntime.png
+      - ../doc/Application_Developers_Guide/acm-states/AcElementTypeStatesOnPpnt.png
+      - ../doc/Application_Developers_Guide/acm-states/AcElementTypeStatesOnRuntime.png
+      - ../doc/Application_Developers_Guide/acm-states/AcInstanceStates.png
+      - ../doc/Application_Developers_Guide/acm-states/AcTypeStates.png
+      - ../doc/Application_Developers_Guide/acm-states/ParticipantStates.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeregisterParticipant.png
+      - ../doc/Application_Developers_Guide/system-dialogues/RegisterParticipant.png
+      - ../doc/Application_Developers_Guide/system-dialogues/PrimeAcTypeOnPpnts.png
+      - ../doc/Application_Developers_Guide/system-dialogues/PrimeInfoUpdatedInDb.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeprimeOnParticipants.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeprimeElements.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UpdateDeprimeInDb.png
+      - ../doc/Application_Developers_Guide/Participant_Protocol.md
+  - name: "System_Level_Dialogues"
+    files:
+      - ../doc/Application_Developers_Guide/System_Level_Dialogues.md
+      - ../doc/Application_Developers_Guide/system-dialogues/CommissionAcTypeSDC.png
+      - ../doc/Application_Developers_Guide/system-dialogues/CommissionUpdateAcType.png
+      - ../doc/Application_Developers_Guide/system-dialogues/CreateAcInstance.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DecommissionAcType.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeleteAcInstance1.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeleteAcInstance2.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeleteAcInstance3.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeployAcInstance.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeployAcInstanceElements.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeployResponseStored.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeprimeElements.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeprimeOnParticipants.png
+      - ../doc/Application_Developers_Guide/system-dialogues/DeregisterParticipant.png
+      - ../doc/Application_Developers_Guide/system-dialogues/FailureHandling1.png
+      - ../doc/Application_Developers_Guide/system-dialogues/FailureHandling2.png
+      - ../doc/Application_Developers_Guide/system-dialogues/FailureHandling3.png
+      - ../doc/Application_Developers_Guide/system-dialogues/FailureHandling4.png
+      - ../doc/Application_Developers_Guide/system-dialogues/FullParticipantReport.png
+      - ../doc/Application_Developers_Guide/system-dialogues/GetAcTypes.png
+      - ../doc/Application_Developers_Guide/system-dialogues/GetParticipantInformation.png
+      - ../doc/Application_Developers_Guide/system-dialogues/LockAcInstance.png
+      - ../doc/Application_Developers_Guide/system-dialogues/LockAcInstanceElements.png
+      - ../doc/Application_Developers_Guide/system-dialogues/LockResponseStored.png
+      - ../doc/Application_Developers_Guide/system-dialogues/MigrateAcInstance1.png
+      - ../doc/Application_Developers_Guide/system-dialogues/MigrateAcInstance2.png
+      - ../doc/Application_Developers_Guide/system-dialogues/MigrateAcInstance3.png
+      - ../doc/Application_Developers_Guide/system-dialogues/OfflineHandling.png
+      - ../doc/Application_Developers_Guide/system-dialogues/OrderInstanceUnlock.png
+      - ../doc/Application_Developers_Guide/system-dialogues/PrimeAcTypeMultiplePpnts.png
+      - ../doc/Application_Developers_Guide/system-dialogues/PrimeAcTypeOnPpnts.png
+      - ../doc/Application_Developers_Guide/system-dialogues/PrimeInfoUpdatedInDb.png
+      - ../doc/Application_Developers_Guide/system-dialogues/ReadAcInstances.png
+      - ../doc/Application_Developers_Guide/system-dialogues/RegisterParticipant.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UpdateAcInstance1.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UpdateAcInstance2.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UpdateAcInstance3.png
+      - ../doc/Application_Developers_Guide/system-dialogues/SuperviseParticipantsStatusUpdate.png
+      - ../doc/Application_Developers_Guide/system-dialogues/SuperviseParticipantsTimeout.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UndeployInstance.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UndeployInstanceElements.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UndeployResponseStored.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UnlockInstanceElements.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UnlockResponseStored.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UpdateDeprimeInDb.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UpdateOperationalState.png
+      - ../doc/Application_Developers_Guide/system-dialogues/UpdateUsageState.png
+  - name: "Service_User_Guide"
+    files:
+      - ../doc/Service_User_Guide/Service_User_Guide.md
+      - ../doc/Service_User_Guide/01-acm-overview.png
+      - ../doc/Service_User_Guide/02-acm-concepts.png
+      - ../doc/Service_User_Guide/03-acm-instance-states.png
+      - ../doc/Service_User_Guide/04-overview.png
+      - ../doc/Service_User_Guide/05-upgrade-states.png
+      - ../doc/Service_User_Guide/06-api-gateway-sandbox.png
+      - ../doc/Service_User_Guide/feature-automation-compositions.png
+      - ../doc/Service_User_Guide/feature-compositions.png
+      - ../doc/Service_User_Guide/Acms.pdf
+  - name: "Test_Specification"
+    files:
+      - ../doc/Test_Specification/Test_Specification.md
+  - name: "Test_Report"
+    files:
+      - ../doc/Test_Report/Test_Report.md
+  - name: "Release_Notes"
+    files:
+      - ../doc/Release_Notes/Release_Notes.md
+  - name: "Allowed_Operations_In_Acm"
+    files:
+      - ../doc/Application_Developers_Guide/Allowed_Operations_In_Acm.md

@@ -1,0 +1,20 @@
+---
+#Service Name, title of your service, used in navigation menus, e.g. Flow Automation.
+serviceName: POLICY
+#The current status of your service e.g: beta, stable, deprecated.
+serviceStatus: stable
+#Platform service docs is divided into 4 categories. List your pages under the relevant category.
+#If a category is not required leave it empty, and it will not be displayed.
+category:
+  aboutTheService:
+    #List the pages in the order you want them to be displayed
+    - files:
+        #The name of the file for the page
+        - fileName: about-the-service.md
+          #The name that will be displayed
+          displayName: "About the service"
+          #Describe the page content, shown when the page link is hovered over
+          previewDescription: "Description for What is 'ACM'"
+        - fileName: overview.md
+          displayName: "Overview"
+          previewDescription: "Overview of Policy-ACM"

@@ -1,0 +1,2 @@
+Dockerfile:helperContainers/envsubst-customization/dockerfile-customization/Dockerfile
+envsubst-file.sh:helperContainers/envsubst-customization/dockerfile-customization/envsubst-file.sh

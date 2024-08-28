@@ -1,0 +1,32 @@
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "eric-oss-acm-runtime.name" . }}
+  labels:
+    {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  annotations:
+    {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+{{- if .Values.metrics.enabled }}
+    {{- $prometheus := include "eric-oss-acm-runtime.prometheus" .| fromYaml }}
+{{- end }}
+spec:
+  ports:
+    - name: https
+      port: {{ .Values.service.port.https }}
+      targetPort: {{ .Values.port.https }}
+    - name: metrics
+      port: {{ .Values.prometheus.port }}
+      targetPort: {{ .Values.prometheus.port }}
+  selector:
+    app: {{- include "eric-oss-acm-runtime.name" . | indent 4 }}
+{{ include "eric-oss-acm-runtime.ipFamliy" . | indent 2 }}

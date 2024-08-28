@@ -1,0 +1,44 @@
+
+# COPYRIGHT Ericsson 2021
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+
+documents:
+  - name: "API Documentation"
+    filepath: ./.bob/build/doc/html/API_Documentation.zip
+  - name: "Application Developers Guide"
+    filepath: ./.bob/build/doc/html/Application_Developers_Guide.zip
+  - name: "Defining Automation Compositions"
+    filepath: ./.bob/build/doc/html/Defining_Automation_Compositions.zip
+  - name: "Service User Guide"
+    filepath: ./.bob/build/doc/html/Service_User_Guide.zip
+  - name: "ACM States"
+    filepath: ./.bob/build/doc/html/ACM_States.zip
+  - name: "Automation Composition Participants"
+    filepath: ./.bob/build/doc/html/Automation_Composition_Participants.zip
+  - name: "Participant Developer Guide"
+    filepath: ./.bob/build/doc/html/Participant_Developer_Guide.zip
+  - name: "Participant Intermediary"
+    filepath: ./.bob/build/doc/html/Participant_Intermediary.zip
+  - name: "Participant Protocol"
+    filepath: ./.bob/build/doc/html/Participant_Protocol.zip
+  - name: "System Level Dialogues"
+    filepath: ./.bob/build/doc/html/System_Level_Dialogues.zip
+  - name: "Automation Composition Runtime"
+    filepath: ./.bob/build/doc/html/Automation_Composition_Runtime.zip
+  - name: "Test Specification"
+    filepath: ./.bob/build/doc/html/Test_Specification.zip
+  - name: "Test Report"
+    filepath: ./.bob/build/doc/html/Test_Report.zip
+  - name: "Release Notes"
+    filepath: ./.bob/build/doc/html/Release_Notes.zip
+  - name: "Allowed Operations In Acm"
+    filepath: ./.bob/build/doc/html/Allowed_Operations_In_Acm.zip

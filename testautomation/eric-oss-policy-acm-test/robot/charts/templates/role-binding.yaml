@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "eric-oss-csit.name" . }}-read
+  labels:
+  {{- include "charts.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "eric-oss-csit.name" . }}-read
+roleRef:
+  kind: Role
+  name: {{ template "eric-oss-csit.name" . }}-read
+  apiGroup: rbac.authorization.k8s.io

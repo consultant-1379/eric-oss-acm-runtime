@@ -1,0 +1,11 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: "{{ include "eric-oss-csit.name" . }}-pvc"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: "{{ include "eric-oss-csit-test.storageClass" . }}"

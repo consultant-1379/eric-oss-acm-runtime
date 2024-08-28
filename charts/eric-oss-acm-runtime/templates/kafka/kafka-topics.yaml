@@ -1,0 +1,49 @@
+{{/*
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+*/}}
+
+{{ if .Values.kafkaConfig.useStrimziKafka }}
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: {{ .Values.kafkaConfig.acRuntimeTopic.name }}
+  labels:
+  {{ if .Values.kafkaConfig.localKafkaCluster}}
+    strimzi.io/cluster: {{ include "eric-oss-acm-runtime.name" . }}
+  {{ else }}
+    strimzi.io/cluster: {{ .Values.global.kafkaClusterName }}
+  {{ end }}
+    {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+spec:
+  partitions: {{ .Values.kafkaConfig.acRuntimeTopic.partitions }}
+  config:
+    retention.ms: {{ .Values.kafkaConfig.acRuntimeTopic.retentionMs }}
+    segment.bytes: {{ .Values.kafkaConfig.acRuntimeTopic.segmentBytes }}
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: {{ .Values.kafkaConfig.syncTopic.name }}
+  labels:
+  {{ if .Values.kafkaConfig.localKafkaCluster}}
+    strimzi.io/cluster: {{ include "eric-oss-acm-runtime.name" . }}
+  {{ else }}
+    strimzi.io/cluster: {{ .Values.global.kafkaClusterName }}
+  {{ end }}
+    {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+spec:
+  partitions: {{ .Values.kafkaConfig.acRuntimeTopic.partitions }}
+  config:
+    retention.ms: {{ .Values.kafkaConfig.acRuntimeTopic.retentionMs }}
+    segment.bytes: {{ .Values.kafkaConfig.acRuntimeTopic.segmentBytes }}
+{{ end }}

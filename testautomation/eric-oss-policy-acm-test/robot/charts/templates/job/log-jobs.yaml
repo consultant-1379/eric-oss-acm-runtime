@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "eric-oss-csit.name" . }}-log
+  namespace: {{ include "eric-oss-csit.namespace" . }}
+  labels:
+    {{- include "charts.labels" . | nindent 4 }}
+spec:
+  template:
+    spec:
+      {{- if  .Values.imageCredentials.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imageCredentials.pullSecret | quote }}
+      {{- else if .Values.global.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.pullSecret | quote }}
+      {{- end }}
+      initContainers:
+      - name: {{ include "eric-oss-csit.name" . }}-mariadb-readiness
+        image: "{{ template "eric-oss-csit.readinessImagePath" . }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /app/ready.py
+        - --container-name
+        - eric-oss-csit-test
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+      containers:
+      - name: {{ include "eric-oss-csit.name" . }}-log
+        image: {{ template "eric-oss-csit.busyboxImagePath" . }}
+        command: ['sh', '-c', 'cat /tmp/log.html']
+        volumeMounts:
+        - mountPath: /tmp
+          name: robotworkspace
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+      - name: {{ include "eric-oss-csit.name" . }}-output
+        image: {{ template "eric-oss-csit.busyboxImagePath" . }}
+        command: ['sh', '-c', 'cat /tmp/output.xml']
+        volumeMounts:
+        - mountPath: /tmp
+          name: robotworkspace
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+      - name: {{ include "eric-oss-csit.name" . }}-report
+        image: {{ template "eric-oss-csit.busyboxImagePath" . }}
+        command: ['sh', '-c', 'cat /tmp/report.html']
+        volumeMounts:
+        - mountPath: /tmp
+          name: robotworkspace
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+      restartPolicy: Never
+      serviceAccount: {{ include "eric-oss-csit.name" . }}-read
+      serviceAccountName: {{ include "eric-oss-csit.name" . }}-read
+      volumes:
+      - persistentVolumeClaim:
+          claimName: {{ include "eric-oss-csit.name" . }}-pvc
+          readOnly: false
+        name: robotworkspace
+      restartPolicy: OnFailure

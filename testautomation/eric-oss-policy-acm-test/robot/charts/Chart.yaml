@@ -1,0 +1,11 @@
+apiVersion: v2
+name: eric-oss-csit
+description: A CSIT test helm chart for policy acm Kubernetes deployments
+keywords:
+  - csit
+  - robot
+maintainers:
+  - name: Akash Rajguru
+  - email: akash.rajguru@est.tech
+type: application
+version: 0.1.0

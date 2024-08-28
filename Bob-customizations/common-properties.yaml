@@ -1,0 +1,4 @@
+modelVersion: 2.0
+
+properties:
+  - docker-image-name: eric-oss-acm-runtime

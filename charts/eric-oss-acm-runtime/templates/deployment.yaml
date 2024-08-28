@@ -1,0 +1,539 @@
+# ******************************************************************************
+#  Copyright (C) 2022-2024 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "eric-oss-acm-runtime-service.name" . }}
+  labels: {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.updateStrategy.type }}
+    {{- if and (eq .Values.updateStrategy.type "RollingUpdate") .Values.updateStrategy.rollingUpdate }}
+    rollingUpdate:
+{{ toYaml .Values.updateStrategy.rollingUpdate | indent 6 }}
+    {{- end }}
+  selector:
+    matchLabels:
+      app: {{ include "eric-oss-acm-runtime.name" . }}
+  template:
+    metadata:
+      annotations:
+      {{- $commonAnnotations := include "eric-oss-acm-runtime.annotations" . | fromYaml -}}
+      {{- $serviceMeshInject := include "eric-oss-acm-runtime.service-mesh-inject" . | fromYaml }}
+      {{- $serviceMeshVersion := include "eric-oss-acm-runtime.service-mesh-version" .| fromYaml }}
+      {{- $serviceMeshVolume := include "eric-oss-acm-runtime.service-mesh-volume" .| fromYaml }}
+      {{- $prometheus := include "eric-oss-acm-runtime.prometheus" .| fromYaml }}
+      {{- if eq "true" (include "eric-oss-acm-runtime.log-streaming-activated" .) }}
+        {{- include "eric-log-shipper-sidecar.LsAppArmorProfileAnnotation" . | nindent 8 }}
+      {{- end }}
+      {{- $appArmor := include "eric-oss-acm-runtime.apparmor-annotations" .| fromYaml }}
+      {{- include "eric-oss-acm-runtime.mergeAnnotations" (dict "location" .Template.Name "sources" (list $commonAnnotations $serviceMeshInject $serviceMeshVersion $serviceMeshVolume $prometheus $appArmor)) | trim | nindent 8 }}
+      labels:
+        {{- $appName := (printf "%s: %s" "app" (include "eric-oss-acm-runtime.name" . )) | fromYaml }}
+        {{- $commonLabels := include "eric-oss-acm-runtime.labels" . | fromYaml -}}
+        {{- $serviceMeshInjectLabel := include "eric-oss-acm-runtime.service-mesh-inject" . | fromYaml }}
+        {{- $k8sInfo := include "eric-oss-acm-runtime.kubernetes-io-info" . | fromYaml }}
+        {{- $i2osmLabels := include "eric-oss-acm-runtime.service-mesh-ism2osm-labels" . | fromYaml }}
+        {{- $dstLabels := include "eric-oss-acm-runtime.dstLabels" .| fromYaml }}
+        {{- if eq "true" (include "eric-oss-acm-runtime.log-streaming-activated" .) }}
+        {{ printf "%s-%s" .Values.logShipper.output.logTransformer.host "access" }}: "true"
+        {{- end }}
+        {{- include "eric-oss-acm-runtime.mergeLabels" (dict "location" .Template.Name "sources" (list $appName $commonLabels $k8sInfo $serviceMeshInjectLabel $i2osmLabels $dstLabels)) | trim | nindent 8 }}
+    spec:
+      volumes:
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
+        - name: acm-runtime-config
+          configMap:
+            name: {{ include "eric-oss-acm-runtime.name" . }}-configmap
+            defaultMode: 0755
+        - name: acm-runtime-config-processed
+          emptyDir: {}
+        - name: tomcat-workaround
+          emptyDir: {}
+        - name: migrator-empty-dir
+          emptyDir: {}
+{{- if eq (include "eric-oss-acm-runtime.log-streaming-activated" .) "true" }}
+  {{- include "eric-log-shipper-sidecar.log-shipper-sidecar-volumes" . | indent 8 }}
+{{- else}}
+        - name: logs
+          emptyDir: {}
+{{- end }}
+        - name: {{ include "eric-oss-acm-runtime.name" . }}-config
+          configMap:
+            name: {{ include "eric-oss-acm-runtime.name" . }}-configmap
+            defaultMode: 0755
+            items:
+              - key: db-pg.sh
+                path: db-pg.sh
+        - name: {{ include "eric-oss-acm-runtime.name" . }}-migrator
+          configMap:
+            name: {{ include "eric-oss-acm-runtime.name" . }}-configmap
+            defaultMode: 0755
+            items:
+              - key: db_migrator_policy_init.sh
+                path: db_migrator_policy_init.sh
+{{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+        - name: init-sip-tls-ca
+          secret:
+            secretName: eric-sec-sip-tls-trusted-root-cert
+            defaultMode: 0755
+        - name: init-cert
+          secret:
+            secretName: {{ template "eric-oss-acm-runtime.name" . }}-{{ .Values.db.service.name }}-root-secret
+            defaultMode: 0600
+        - name: user-sip-tls-ca
+          secret:
+            secretName: eric-sec-sip-tls-trusted-root-cert
+            defaultMode: 0755
+        - name: user-cert
+          secret:
+            secretName: {{ template "eric-oss-acm-runtime.name" . }}-{{ .Values.db.service.name }}-secret
+            defaultMode: 0600
+{{- end }}
+      automountServiceAccountToken: true
+      serviceAccount: {{ include "eric-oss-acm-runtime.name" . }}-read
+      serviceAccountName: {{ include "eric-oss-acm-runtime.name" . }}-read
+      securityContext:
+        fsGroup: {{ include "eric-oss-acm-runtime.fsGroup-coordinated" . }}
+        runAsUser: 1000
+      imagePullSecrets:
+        - name: {{ include "eric-oss-acm-runtime.pullSecret" .}}
+      initContainers:
+      - command: [ "/bin/sh", "-cx" ]
+        args:
+          - /app/ready.py --container-name {{ .Values.db.service.name }}
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        image: "{{ template "eric-oss-acm-runtime.readinessImagePath" . }}"
+        imagePullPolicy: {{ include "eric-oss-acm-runtime.registryImagePullPolicy" . }}
+        name: {{ include "eric-oss-acm-runtime.name" . }}-readiness
+        resources:
+          requests:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" | quote }}
+            {{- end }}
+          limits:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" | quote }}
+            {{- end }}
+        securityContext:
+          {{- .Values.securityContext | toYaml | nindent 10 }}
+          {{- include "eric-oss-acm-runtime.seccomp-profile" . | indent 10 }}
+      - name: {{ include "eric-oss-acm-runtime.name" . }}-policy-postgres-config
+        image: "{{ template "eric-oss-acm-runtime.postgresImagePath" . }}"
+        imagePullPolicy: {{ include "eric-oss-acm-runtime.registryImagePullPolicy" . }}
+        volumeMounts:
+          - mountPath: /dbcmd-config/db-pg.sh
+            name: {{ include "eric-oss-acm-runtime.name" . }}-config
+            subPath: db-pg.sh
+        {{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+          - mountPath: /opt/mtls/cert/
+            name: init-cert
+            readOnly: true
+          - mountPath: /opt/mtls/ca/
+            name: init-sip-tls-ca
+            readOnly: true
+        {{- end }}
+        command: [ "/bin/sh", "-cx" ]
+        args:
+          - echo "waiting 15s for istio side cars to be up"; sleep 15s;
+            /dbcmd-config/db-pg.sh
+        env:
+        {{- if .Values.global }}
+        {{- if .Values.global.timezone }}
+          - name: TZ
+            value: {{ .Values.global.timezone | quote }}
+        {{- end }}
+        {{- end }}
+          - name: TLS_ENABLED
+            value: "{{ include "eric-oss-acm-runtime.global-security-tls-enabled" . | trim -}}"
+          - name: PG_HOST
+            value: {{ .Values.db.service.name }}
+          - name: PG_PORT
+            value: {{ .Values.db.service.internalPort | quote }}
+        {{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+          - name: PG_USER
+            value: {{ .Values.db.user }}
+          - name: PGSSLMODE
+            value: verify-full
+          - name: PGSSLCERT
+            value: /opt/mtls/cert/cert.pem
+          - name: PGSSLKEY
+            value: /opt/mtls/cert/key.pem
+          - name: PGSSLROOTCERT
+            value: /opt/mtls/ca/cacertbundle.pem
+        {{- else }}
+          - name: PG_USER
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-secret" "key" "login") | indent 12 }}
+          - name: PG_USER_PASSWORD
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-secret" "key" "password") | indent 12 }}
+          - name: PG_ROOT_PASSWORD
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-root-password" "key" "password") | indent 12 }}
+        {{- end }}
+        resources:
+          requests:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" | quote }}
+            {{- end }}
+          limits:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" | quote }}
+            {{- end }}
+        securityContext:
+          {{- .Values.securityContext | toYaml | nindent 12 }}
+      - name: {{ include "eric-oss-acm-runtime.name" . }}-postgres-migrator
+        image: "{{ template "eric-oss-acm-runtime.migratorImagePath" . }}"
+        imagePullPolicy: {{ include "eric-oss-acm-runtime.registryImagePullPolicy" . }}
+        volumeMounts:
+          - mountPath: /dbcmd-config/db_migrator_policy_init.sh
+            name: {{ include "eric-oss-acm-runtime.name" . }}-migrator
+            subPath: db_migrator_policy_init.sh
+          - mountPath: /opt/app/policy/etc/db/migration/
+            name: migrator-empty-dir
+        {{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+          - mountPath: /opt/mtls/cert/
+            name: user-cert
+            readOnly: true
+          - mountPath: /opt/mtls/ca/
+            name: user-sip-tls-ca
+            readOnly: true
+        {{- end }}
+        command: [ "/bin/sh", "-cx" ]
+        args:
+          - echo "waiting 15s for istio side cars to be up"; sleep 15s;
+            id;
+            /dbcmd-config/db_migrator_policy_init.sh
+        env:
+        {{- if .Values.global }}
+        {{- if .Values.global.timezone }}
+          - name: TZ
+            value: {{ .Values.global.timezone | quote }}
+        {{- end }}
+        {{- end }}
+          - name: TLS_ENABLED
+            value: "{{ include "eric-oss-acm-runtime.global-security-tls-enabled" . | trim -}}"
+          - name: SQL_HOST
+            value: {{ .Values.db.service.name }}
+          - name: SQL_DB
+            value: {{ .Values.dbmigrator.schema }}
+          - name: POLICY_HOME
+            value: {{ index .Values "dbmigrator" "policy-home" | quote }}
+          - name: SCRIPT_DIRECTORY
+            value: "postgres"
+          - name: PG_PORT
+            value: {{ .Values.db.service.internalPort | quote }}
+        {{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+          - name: SQL_USER
+            value: {{ .Values.db.user }}
+            # The below password is not used at all but a script checks for its presence.
+          - name: SQL_PASSWORD
+            value: "dummy"
+          - name: PGSSLMODE
+            value: verify-full
+          - name: PGSSLCERT
+            value: /opt/mtls/cert/cert.pem
+          - name: PGSSLKEY
+            value: /opt/mtls/cert/key.pem
+          - name: PGSSLROOTCERT
+            value: /opt/mtls/ca/cacertbundle.pem
+        {{- else }}
+          - name: SQL_USER
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-secret" "key" "login") | indent 12 }}
+          - name: SQL_PASSWORD
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-secret" "key" "password") | indent 12 }}
+          - name: PGPASSWORD
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-secret" "key" "password") | indent 12 }}
+        {{- end }}
+        resources:
+          requests:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" | quote }}
+            {{- end }}
+          limits:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" | quote }}
+            {{- end }}
+        securityContext:
+          {{- .Values.securityContext | toYaml | nindent 12 }}
+{{ if or .Values.kafkaConfig.localKafkaCluster .Values.waitForStrimzi }}
+      - command:
+        - /app/ready.py
+        args:
+        - --container-name
+        - user-operator
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        image: "{{ template "eric-oss-acm-runtime.readinessImagePath" . }}"
+        imagePullPolicy: {{ include "eric-oss-acm-runtime.registryImagePullPolicy" . }}
+        name: {{ include "eric-oss-acm-runtime.name" . }}-kafka-readiness
+{{- end }}
+      - command:
+        - sh
+        args:
+        - -c
+        - "id; cd /config-input && for PFILE in `ls -1`; do envsubst <${PFILE} >/config/${PFILE}; done"
+        env:
+{{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+        - name: SQL_USER
+          value: {{ .Values.db.user }}
+          # The below password is not used at all but a script checks for its presence.
+        - name: SQL_PASSWORD
+          value: "dummy"
+{{- else }}
+        - name: SQL_USER
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-secret" "key" "login") | indent 10 }}
+        - name: SQL_PASSWORD
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "db-secret" "key" "password") | indent 10 }}
+        - name: RUNTIME_USER
+            {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "runtime-secret" "key" "login") | indent 10 }}
+        - name: RUNTIME_PASSWORD
+          {{- include "eric-oss-acm-runtime.secret.envFromSecret" (dict "global" . "uid" "runtime-secret" "key" "password") | indent 10 }}
+{{- end }}
+{{- if and .Values.kafkaConfig.useStrimziKafka .Values.kafkaConfig.localKafkaCluster }}
+        - name: JAASLOGIN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "eric-oss-acm-runtime.name" . }}-{{ .Values.kafkaConfig.acmKafkaUser }}
+              key: sasl.jaas.config
+              optional: false
+{{ end }}
+        volumeMounts:
+        - mountPath: /config-input
+          name: acm-runtime-config
+        - mountPath: /config
+          name: acm-runtime-config-processed
+        image: "{{ template "eric-oss-acm-runtime.envsubstImagePath" . }}"
+        imagePullPolicy: {{ include "eric-oss-acm-runtime.registryImagePullPolicy" . }}
+        name: {{ include "eric-oss-acm-runtime.name" . }}-update-config
+        resources:
+          requests:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" | quote }}
+            {{- end }}
+          limits:
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" }}
+            memory: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" }}
+            cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" | quote }}
+            {{- end }}
+            {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" }}
+            ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" | quote }}
+            {{- end }}
+        securityContext:
+          {{- .Values.securityContext | toYaml | nindent 10 }}
+          {{- include "eric-oss-acm-runtime.seccomp-profile" . | indent 10 }}
+      containers:
+{{- if eq "true" (include "eric-oss-acm-runtime.log-streaming-activated" .) }}
+   {{- $logshipperImageDict := dict "logshipperSidecarImage" ((((.Values).global).logShipper).config).image -}}
+   {{- include "eric-log-shipper-sidecar.log-shipper-sidecar-container" (mergeOverwrite . $logshipperImageDict ) | indent 8 }}
+{{- end }}
+        - name: {{ include "eric-oss-acm-runtime.name" . }}
+          image: "{{ template "eric-oss-acm-runtime.mainImagePath" . }}"
+          imagePullPolicy: {{ include "eric-oss-acm-runtime.registryImagePullPolicy" . }}
+          command: ["/bin/sh", "-cx"]
+          args:
+            - id policy;
+              /opt/app/policy/clamp/bin/acm-runtime.sh /opt/app/policy/clamp/etc/acRuntimeParameters.yaml
+          env:
+          {{- if .Values.global }}
+          {{- if .Values.global.timezone }}
+            - name: TZ
+              value: {{ .Values.global.timezone | quote }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.global }}
+          {{- if .Values.global.security }}
+          {{- if .Values.global.security.tls }}
+          {{- if .Values.global.security.tls.enabled }}
+            - name: CONNECT_MODE
+              value: "tls"
+          {{- if (eq .Values.service.endpoints.restapi.tls.enforced "required") }}
+            - name: TLS_MODE
+              value: "only_tls"
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- $dstEnabled := tpl "eric-oss-acm-runtime.dst-enabled" . | trimSuffix "\n" -}}
+          {{- if $dstEnabled }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.applicationName }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: {{ include "eric-oss-acm-runtime.dst-kafka-protocol" . }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+              value: {{ include "eric-oss-acm-runtime.dst-kafka-protocol" . }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ printf "%s:%s" (.Values.dst.collector.host) (include "eric-oss-acm-runtime.exporter-port" .) }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port.http }}
+            - name: https
+              containerPort: {{ .Values.port.https }}
+            - name: metrics
+              containerPort: {{ .Values.prometheus.port }}
+          {{- if .Values.debug }}
+            - name: jvm-debug
+              containerPort: {{ .Values.port.jvmDebug }}
+            - name: jvm-jmx-remote
+              containerPort: {{ .Values.port.jvmJmxRemote }}
+          {{- end }}
+          readinessProbe:
+            {{- with .Values.probes.acmruntime.readinessProbe }}
+            tcpSocket:
+              port: {{ .tcpSocket.port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            successThreshold: {{ .successThreshold }}
+            failureThreshold: {{ .failureThreshold }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            {{- end }}
+          livenessProbe:
+            {{- with .Values.probes.acmruntime.livenessProbe }}
+            tcpSocket:
+              port: {{ .tcpSocket.port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            {{- end }}
+          securityContext:
+            {{- .Values.mainSecurityContext | toYaml | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.seccomp-profile" . | indent 12 }}
+          resources:
+            requests:
+              {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" }}
+              memory: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "memory" | quote }}
+              {{- end }}
+              {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" }}
+              cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "cpu" | quote }}
+              {{- end }}
+              {{- if index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" }}
+              ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "requests" "ephemeral-storage" | quote }}
+              {{- end }}
+            limits:
+              {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" }}
+              memory: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "memory" | quote }}
+              {{- end }}
+              {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" }}
+              cpu: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "cpu" | quote }}
+              {{- end }}
+              {{- if index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" }}
+              ephemeral-storage: {{ index .Values "resources" "eric-oss-acm-runtime" "limits" "ephemeral-storage" | quote }}
+              {{- end }}
+          volumeMounts:
+          - mountPath: /etc/localtime
+            name: localtime
+            readOnly: true
+          - mountPath: /opt/app/policy/clamp/etc
+            name: acm-runtime-config-processed
+          - mountPath: /opt/app/policy/clamp/bin/acm-runtime.sh
+            name: acm-runtime-config
+            subPath: acm-runtime.sh
+          - mountPath: /tmp
+            name: tomcat-workaround
+{{- if eq "true" (include "eric-oss-acm-runtime.log-streaming-activated" .) }}
+    {{- include "eric-log-shipper-sidecar.log-shipper-sidecar-mounts" . | indent 10 }}
+{{- else }}
+          - mountPath: {{ .Values.logShipper.storage.path }}
+            name: logs
+{{- end }}
+      {{- include "eric-oss-acm-runtime.nodeSelector" . | nindent 6 }}
+      {{- if ne (len (include "eric-oss-acm-runtime.tolerations" .)) 0 }}
+      tolerations:
+        {{- include "eric-oss-acm-runtime.tolerations" . | nindent 8 }}
+      {{- end }}
+      {{- if index .Values "podPriority" "acm-runtime" "priorityClassName" }}
+      priorityClassName: {{ index .Values "podPriority" "acm-runtime" "priorityClassName" | quote }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+{{- if eq .Values.affinity.podAntiAffinity "hard" }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - {{ include "eric-oss-acm-runtime.name" . }}
+              topologyKey: {{ .Values.affinity.topologyKey | quote }}
+{{- else if eq .Values.affinity.podAntiAffinity  "soft" }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - {{ include "eric-oss-acm-runtime.name" . }}
+                topologyKey: {{ .Values.affinity.topologyKey | quote }}
+{{- end }}

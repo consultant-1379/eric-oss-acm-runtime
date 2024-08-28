@@ -1,0 +1,124 @@
+{{/*
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+*/}}
+
+{{- $dot := . -}}
+{{ if eq $dot.Values.createDefaultRoles true }}
+{{- range $role_type := $dot.Values.defaultRoles }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ printf "%s-%s" (include "eric-oss-acm-runtime.name" $dot) $role_type }}
+  labels: {{- include "eric-oss-acm-runtime.labels" $dot | nindent 4 }}
+  annotations: {{- include "eric-oss-acm-runtime.annotations" $dot | nindent 4 }}
+rules:
+{{-   if eq $role_type "read" }}
+  - apiGroups:
+      - "" # "" indicates the core API group
+      - apps
+      - batch
+      - extensions
+    resources:
+      - pods
+      - deployments
+      - deployments/status
+      - jobs
+      - jobs/status
+      - statefulsets
+      - replicasets
+      - replicasets/status
+      - daemonsets
+      - secrets
+    verbs:
+      - get
+      - watch
+      - list
+{{-   else  }}
+{{-     if eq $role_type "create" }}
+  - apiGroups:
+      - "" # "" indicates the core API group
+      - apps
+      - batch
+      - extensions
+    resources:
+      - pods
+      - deployments
+      - deployments/status
+      - jobs
+      - jobs/status
+      - statefulsets
+      - replicasets
+      - replicasets/status
+      - daemonsets
+      - secrets
+      - services
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "" # "" indicates the core API group
+      - apps
+    resources:
+      - statefulsets
+      - configmaps
+    verbs:
+      - patch
+  - apiGroups:
+      - "" # "" indicates the core API group
+      - apps
+    resources:
+      - deployments
+      - secrets
+      - services
+      - pods
+    verbs:
+      - create
+  - apiGroups:
+      - "" # "" indicates the core API group
+      - apps
+    resources:
+      - pods
+      - persistentvolumeclaims
+      - secrets
+      - deployments
+      - services
+    verbs:
+      - delete
+  - apiGroups:
+      - "" # "" indicates the core API group
+      - apps
+    resources:
+      - pods/exec
+    verbs:
+      - create
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+    verbs:
+      - create
+      - delete
+{{-     else }}
+  # if you don't match read or create, then you're not allowed to use API
+  # except to see basic information about yourself
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - selfsubjectaccessreviews
+      - selfsubjectrulesreviews
+    verbs:
+      - create
+{{-     end }}
+{{-   end }}
+{{- end }}
+{{- end }}

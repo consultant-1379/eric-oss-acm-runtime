@@ -1,0 +1,160 @@
+# ******************************************************************************
+#  Copyright (C) 2022-2024 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+
+spring:
+  application:
+    name: {{ .Values.applicationName }}
+{{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "false") }}
+  security:
+    user:
+      name: ${RUNTIME_USER}
+      password: ${RUNTIME_PASSWORD}
+{{- end }}
+  mvc:
+    converters:
+      preferred-json-mapper: gson
+  datasource:
+    url: jdbc:postgresql://{{ .Values.db.service.name }}:{{ .Values.db.service.internalPort }}/clampacm
+    driverClassName: org.postgresql.Driver
+{{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+    username: {{ .Values.db.user }}
+    # password: ${SQL_PASSWORD}
+{{- else }}
+    username: ${SQL_USER}
+    password: ${SQL_PASSWORD}
+{{- end }}
+    hikari:
+      connectionTimeout: 30000
+      idleTimeout: 600000
+      maxLifetime: 1800000
+      maximumPoolSize: 10
+  jpa:
+    hibernate:
+      ddl-auto: update
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.onap.policy.common.spring.utils.CustomImplicitNamingStrategy
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+security:
+  enable-csrf: false
+
+server:
+  ssl:
+    enabled: false
+  port: 6969
+  servlet:
+    context-path: /onap/policy/clamp/acm
+  error:
+    path: /error
+
+
+runtime:
+  topics:
+    operationTopic: {{ .Values.kafkaConfig.acRuntimeTopic.name }}
+    syncTopic: {{ .Values.kafkaConfig.syncTopic.name }}
+  participantParameters:
+    heartBeatMs: 120000
+    maxMessageAgeMs: 600000
+    maxStatusWaitMs: {{- include "eric-oss-acm-runtime.timeout" . }}
+    updateParameters:
+      maxRetryCount: 3
+      maxWaitMs: 100000
+  acmParameters:
+    toscaElementName: {{ .Values.customNaming.toscaElementName }}
+    toscaCompositionName: {{ .Values.customNaming.toscaCompositionName }}
+  topicParameterGroup:
+    topicSources:
+      -
+        topic: {{ .Values.kafkaConfig.acRuntimeTopic.name }}
+        servers:
+          - {{- include "eric-oss-acm-runtime.kafka-bootstrap-server" . | indent 12 }}
+        useHttps: false
+        allowTracing: {{ include "eric-oss-acm-runtime.dst-enabled" . }}
+        fetchTimeout: 15000
+{{ if .Values.kafkaConfig.useStrimziKafka }}
+        topicCommInfrastructure: kafka
+        additionalProps:
+          group.id : {{ .Values.kafkaConfig.kafka.consumer.groupId }}
+  {{ if .Values.kafkaConfig.localKafkaCluster }}
+          security.protocol: SASL_PLAINTEXT
+          sasl.mechanism: {{ .Values.kafkaConfig.saslMechanism | upper }}
+          sasl.jaas.config: ${JAASLOGIN}
+  {{ end }}
+{{ else }}
+        topicCommInfrastructure: noop
+{{ end }}
+    topicSinks:
+      -
+        topic: {{ .Values.kafkaConfig.acRuntimeTopic.name }}
+        servers:
+          - {{- include "eric-oss-acm-runtime.kafka-bootstrap-server" . | indent 12 }}
+        useHttps: false
+        allowTracing: {{ include "eric-oss-acm-runtime.dst-enabled" . }}
+{{ if .Values.kafkaConfig.useStrimziKafka }}
+        topicCommInfrastructure: kafka
+        additionalProps:
+          group.id : {{ .Values.kafkaConfig.kafka.consumer.groupId }}
+  {{ if .Values.kafkaConfig.localKafkaCluster }}
+          security.protocol: SASL_PLAINTEXT
+          sasl.mechanism: {{ .Values.kafkaConfig.saslMechanism | upper }}
+          sasl.jaas.config: ${JAASLOGIN}
+  {{ end }}
+{{ else }}
+        topicCommInfrastructure: noop
+{{ end }}
+      -
+        topic: {{ .Values.kafkaConfig.syncTopic.name }}
+        servers:
+          - {{- include "eric-oss-acm-runtime.kafka-bootstrap-server" . | indent 12 }}
+        useHttps: false
+        allowTracing: {{ include "eric-oss-acm-runtime.dst-enabled" . }}
+{{ if .Values.kafkaConfig.useStrimziKafka }}
+        topicCommInfrastructure: kafka
+  {{ if .Values.kafkaConfig.localKafkaCluster }}
+        additionalProps:
+          security.protocol: SASL_PLAINTEXT
+          sasl.mechanism: {{ .Values.kafkaConfig.saslMechanism | upper }}
+          sasl.jaas.config: ${JAASLOGIN}
+  {{ end }}
+{{ else }}
+        topicCommInfrastructure: noop
+{{ end }}
+
+management:
+  server:
+    port: {{ .Values.prometheus.port }}
+    base-path: /
+  tracing:
+    propagation:
+      produce: [{{ .Values.dst.producer.type }}]
+    sampling:
+      probability: {{ .Values.dst.sampling.probability }}
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health, metrics, prometheus
+
+tracing:
+  enabled: {{ include "eric-oss-acm-runtime.dst-enabled" . }}
+  exporter:
+    endpoint: {{ .Values.dst.collector.host }}:{{ include "eric-oss-acm-runtime.exporter-port" . }}
+    protocol: {{ .Values.dst.collector.protocol }}
+  sampler:
+    jaeger-remote:
+      endpoint: {{ .Values.dst.collector.host }}:{{ .Values.dst.collector.portJaegerGrpc }}
+
+{{- if (eq (include "eric-oss-acm-runtime.global-security-tls-enabled" .) "true") }}
+basicAuth: false
+{{- end }}

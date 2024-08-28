@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "eric-oss-csit.name" . }}-test
+  namespace: {{ include "eric-oss-csit.namespace" . }}
+  labels:
+    {{- include "charts.labels" . | nindent 4 }}
+spec:
+  template:
+    spec:
+      {{- if  .Values.imageCredentials.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imageCredentials.pullSecret | quote }}
+      {{- else if .Values.global.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.pullSecret | quote }}
+      {{- end }}
+      containers:
+      - name: {{ include "eric-oss-csit.name" . }}-test
+        image: {{ template "eric-oss-csit.csitTestImagePath" . }}
+        volumeMounts:
+        - mountPath: /tmp
+          name: robotworkspace
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+{{- include "eric-oss-csit-test.containerEnv" . }}
+      volumes:
+      - persistentVolumeClaim:
+          claimName: {{ include "eric-oss-csit.name" . }}-pvc
+          readOnly: false
+        name: robotworkspace
+      restartPolicy: OnFailure

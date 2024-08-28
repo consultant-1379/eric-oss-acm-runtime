@@ -1,0 +1,30 @@
+{{/*
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+*/}}
+
+{{- if eq .Values.autoScaling.enabled true }}
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ template "eric-oss-acm-runtime.name" . }}
+  labels:
+  {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  annotations:
+  {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ template "eric-oss-acm-runtime.name" . }}
+  minReplicas: {{ .Values.autoScaling.minReplicas }}
+  maxReplicas: {{ .Values.autoScaling.maxReplicas }}
+  targetCPUUtilizationPercentage: 50
+{{ end }}

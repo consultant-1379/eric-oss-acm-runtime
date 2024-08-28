@@ -1,0 +1,164 @@
+{{/*
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+*/}}
+
+{{ if .Values.kafkaConfig.localKafkaCluster }}
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  annotations:
+    {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+  labels:
+    {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  name: {{ include "eric-oss-acm-runtime.name" . }}
+spec:
+  entityOperator:
+    template:
+      pod:
+        metadata:
+          annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-inject" . | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-version" .| nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-volume" .| nindent 12 }}
+          labels:
+            app: {{ include "eric-oss-acm-runtime.name" . }}
+            acm: cluster
+            {{- include "eric-oss-acm-runtime.kubernetes-io-info" . | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-inject" . | nindent 12 }}
+    topicOperator:
+      resources:
+        limits:
+          cpu: 1
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    userOperator:
+      resources:
+        limits:
+          cpu: 1
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+  kafka:
+    config:
+      auto.create.topics.enable: false
+      default.replication.factor: 1
+      inter.broker.protocol.version: "3.0"
+      min.insync.replicas: 1
+      offsets.topic.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      transaction.state.log.replication.factor: 1
+    image: armdocker.rnd.ericsson.se/proj-eric-oss-drop/eric-oss-kf-sz-kafka:1.0.0-7-kafka-3.2.0
+    listeners:
+    - name: plain
+      port: 9092
+      tls: false
+      type: internal
+      authentication:
+        type: {{ .Values.kafkaConfig.saslMechanism }}
+    authorization:
+      type: simple
+    livenessProbe:
+      initialDelaySeconds: 40
+      timeoutSeconds: 5
+    readinessProbe:
+      initialDelaySeconds: 40
+      timeoutSeconds: 5
+    replicas: 1
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    storage:
+      type: jbod
+      volumes:
+      - deleteClaim: false
+        id: 0
+        size: 2Gi
+        type: persistent-claim
+    template:
+      pod:
+        metadata:
+          annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-inject" . | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-version" .| nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-volume" .| nindent 12 }}
+          labels:
+            app: {{ include "eric-oss-acm-runtime.name" . }}
+            acm: cluster
+            {{- include "eric-oss-acm-runtime.kubernetes-io-info" . | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-inject" . | nindent 12 }}
+        terminationGracePeriodSeconds: 30
+      podDisruptionBudget:
+        maxUnavailable: 1
+    version: 3.2.0
+  zookeeper:
+    image: armdocker.rnd.ericsson.se/proj-eric-oss-drop/eric-oss-kf-sz-kafka:1.0.0-7-kafka-3.2.0
+    livenessProbe:
+      initialDelaySeconds: 40
+      timeoutSeconds: 5
+    readinessProbe:
+      initialDelaySeconds: 40
+      timeoutSeconds: 5
+    replicas: 1
+    config:
+      ssl.hostnameVerification: false
+      ssl.quorum.hostnameVerification: false
+      sslQuorum: false
+      quorumListenOnAllIPs: true
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    storage:
+      deleteClaim: false
+      size: 2Gi
+      type: persistent-claim
+    template:
+      pod:
+        metadata:
+          annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 12 }}
+          {{- include "eric-oss-acm-runtime.service-mesh-inject" . | nindent 12 }}
+          {{- include "eric-oss-acm-runtime.service-mesh-version" .| nindent 12 }}
+          {{- include "eric-oss-acm-runtime.service-mesh-volume" .| nindent 12 }}
+          labels:
+            app: {{ include "eric-oss-acm-runtime.name" . }}
+            acm: cluster
+            {{- include "eric-oss-acm-runtime.kubernetes-io-info" . | nindent 12 }}
+            {{- include "eric-oss-acm-runtime.service-mesh-inject" . | nindent 12 }}
+status:
+  conditions:
+  - lastTransitionTime: "2022-10-14T17:31:34.340945Z"
+    message: inter.broker.protocol.version does not match the Kafka cluster version,
+      which suggests that an upgrade is incomplete.
+    reason: KafkaInterBrokerProtocolVersion
+    status: "True"
+    type: Warning
+  - lastTransitionTime: "2022-10-14T17:33:32.752Z"
+    status: "True"
+    type: Ready
+  listeners:
+  - addresses:
+    - host: {{ include "eric-oss-acm-runtime.kafka-bootstrap-server" . }}
+      port: 9092
+    bootstrapServers: {{ include "eric-oss-acm-runtime.kafka-bootstrap-server" . }}:9092
+    name: plain
+    type: plain
+  observedGeneration: 1
+{{ end }}

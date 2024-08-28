@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acm-robot-test
+spec:
+  template:
+    metadata:
+      labels:
+        type: acm-robot-test
+    spec:
+      imagePullSecrets:
+        - name: $IMAGE_PULL_SECRET
+      containers:
+      - name: acm-robot-test
+        image: $IMAGE_PATH
+        volumeMounts:
+        - mountPath: /tmp
+          name: robotworkspace
+        imagePullPolicy: Always
+        env:
+        - name: POLICY_RUNTIME_ACM_IP
+          value: "$POLICY_RUNTIME_ACM_IP"
+        - name: POLICY_RUNTIME_ACM_TEST_CASE
+          value: "$POLICY_RUNTIME_ACM_TEST_CASE"
+        - name: POLICY_ADMIN_PASSWORD
+          value: "$POLICY_ADMIN_PASSWORD"
+      volumes:
+      - persistentVolumeClaim:
+          claimName: "acm-robot-test-pvc"
+          readOnly: false
+        name: robotworkspace
+      restartPolicy: OnFailure

@@ -1,0 +1,100 @@
+# ******************************************************************************
+#  Copyright (C) 2022-2024 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+
+secrets:
+  - uid: db-root-password
+    name: &dbRootPassSecretName '{{ default "eric-oss-acm-runtime" .Values.nameOverride }}-policy-db-root-password'
+    type: password
+    externalSecret: '{{ ternary "" (tpl (default "" (index .Values "db" "admin" "externalSecret")) .) (hasSuffix "policy-db-root-password" (index .Values "db" "admin" "externalSecret"))}}'
+    password: '{{ .Values.db.admin.password }}'
+    passwordPolicy: generate
+  - uid: db-secret
+    name: &dbSecretName '{{ default "eric-oss-acm-runtime" .Values.nameOverride }}-policy-db-secret'
+    externalSecret: '{{ ternary "" (tpl (default "" (index .Values "db" "externalSecret")) .) (hasSuffix "policy-db-secret" (index .Values "db" "externalSecret"))}}'
+    type: basicAuth
+    login: '{{ .Values.db.user }}'
+    password: '{{ .Values.db.password }}'
+    passwordPolicy: generate
+  - uid: runtime-secret
+    name: &policyAppCredsSecret '{{ default "eric-oss-acm-runtime" .Values.nameOverride }}-policy-app-user-creds'
+    type: basicAuth
+#    externalSecret: '{{ tpl (default "" .Values.policyAppUserExternalSecret) . }}'
+    externalSecret: '{{ ternary "" (tpl (default "" (index .Values "policyAppUserExternalSecret")) .) (hasSuffix "policy-app-user-creds" (index .Values "policyAppUserExternalSecret"))}}'
+    login: '{{ .Values.policyAppUserName }}'
+    password: '{{ .Values.policyAppUserPassword }}'
+    passwordPolicy: generate
+  - uid: eric-pg-secret
+    name: &pgUserCreds eric-oss-acm-runtime-pg-data-creds
+    externalSecret: '{{ ternary "" (tpl (default "" (index .Values "eric-data-document-database-pg" "credentials" "kubernetesSecretName")) .) (hasSuffix "pg-data-creds" (index .Values "eric-data-document-database-pg" "credentials" "kubernetesSecretName"))}}'
+    type: genericKV
+    envs:
+      - name: custom-user
+        value: '{{ index .Values "db" "user" }}'
+        policy: required
+      - name: custom-pwd
+        value: '{{- include "eric-oss-acm-runtime.retrieveGeneratedPwd" (dict "dot" . "uid" "policy-db-secret") }}'
+        policy: required
+      - name: super-pwd
+        value: '{{- include "eric-oss-acm-runtime.retrieveGeneratedPwd" (dict "dot" . "uid" "policy-db-root-password") }}'
+        policy: required
+      - name: metrics-pwd
+        value: '{{- include "eric-oss-acm-runtime.retrieveGeneratedPwd" (dict "dot" . "uid" "policy-db-secret") }}'
+        policy: required
+      - name: replica-user
+        value: '{{ index .Values "db" "user" }}'
+        policy: required
+      - name: replica-pwd
+        value: '{{- include "eric-oss-acm-runtime.retrieveGeneratedPwd" (dict "dot" . "uid" "policy-db-secret") }}'
+        policy: required
+
+policyAppUserName: runtimeUser
+policyAppUserPassword: none
+policyAppUserExternalSecret: *policyAppCredsSecret
+
+eric-data-document-database-pg:
+  enabled: true
+  credentials:
+    # Secret must be explicitly named like this - document database cannot resolve a helm template reference.
+    kubernetesSecretName: *pgUserCreds
+#    kubernetesSecretName: eric-oss-acm-runtime-pg-data-creds
+  persistentVolumeClaim:
+    size: 1Gi
+  service:
+    endpoints:
+      postgres:
+        tls:
+          enforced: optional
+      postgresExporter:
+        tls:
+          enforced: optional
+
+db:
+  user: policy_user
+  password: null
+  externalSecret: *dbSecretName
+  admin:
+    password: null
+    externalSecret: *dbRootPassSecretName
+  service:
+    name: eric-data-document-database-pg
+    internalPort: 5432
+
+kafkaConfig:
+  localKafkaCluster: true
+  useStrimziKafka: true
+  policyAppUserExternalSecret: *policyAppCredsSecret
+  kafkaUserPassword: null
+
+createDefaultRoles: true
+defaultRoles:
+  - read
+
+imageCredentials:
+  pullSecret: eric-oss-acm-runtime-pull-secret

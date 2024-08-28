@@ -1,0 +1,29 @@
+{{/*
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+*/}}
+
+{{- $serviceMesh := include "eric-oss-acm-runtime.service-mesh-enabled" . | trim -}}
+{{- $tls := include "eric-oss-acm-runtime.global-security-tls-enabled" . | trim -}}
+{{- if and (eq $serviceMesh "true") (eq $tls "true") -}}
+apiVersion: siptls.sec.ericsson.com/v1
+kind: InternalUserCA
+metadata:
+  name: {{ template "eric-oss-acm-runtime.name" . }}-client-ca
+  annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+  labels: {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+spec:
+  kubernetes:
+    generatedSecretName: {{ template "eric-oss-acm-runtime.name" . }}-client-ca
+    certificateName: acmCAcertbundle.pem
+  certificate:
+    subject:
+      cn: {{ template "eric-oss-acm-runtime.name" . }}-client-ca
+{{ end }}

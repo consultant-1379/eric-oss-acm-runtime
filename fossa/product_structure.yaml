@@ -1,0 +1,147 @@
+modelVersion: "2.0"
+flavor: "Generic" # ADP 2.0 expects everything to be completed (e.g. documents)
+service:
+  # name of the service:
+  name: "Automation Composition Management Runtime"
+  # Design Country (set on the source products)
+  design_countries:
+   - IE # Ireland
+  # Compilation Country (Set on the derivative products)
+  sw_compilation_country: SE
+  # Release responsible
+  release_responsible: BCSSJAFF
+  #  Design responsible
+  design_responsible: BCSSJAFF
+  #fossUsageStatus:
+  # using "Completed" when encryption is not changed compared to previous released version.
+  encryption_status: "Completed"
+  # Bookmarks
+  bookmark: PRIM
+  # The documents is optional if all eridoc document revisions are set
+    #documents:
+    # Read documents revisions from this file
+    # Use munin-doc search and pri.py to generate this file.
+    # Use full or relative path to product_structure.yaml
+    #import: ../../build/documents.yaml
+  # Delivery purpose (Optional, defaults to ExternalUse)
+  #delivery_purpose: InternalTesting
+
+  # Details of the APR product structure:
+  top_product:
+    # Note: all derivative_products are automatically added to APR product structure
+    alias: ["eric-oss-acm-runtime"]
+    # APR Product Number
+    number: APR 201 427
+    # Designation
+    designation: "Automation Composition Management Runtime"
+    # Description
+    description: "The ACM-R server that holds Automation Composition Type definitions and manages the life cycle of Automation Compsition Instances and their Automation Composition Elements in cooperation with participants."
+    # Included documents and products
+    includes:
+        # SUSE Licenses
+      - prim: 1/FAL 115 3215
+        rstate: R1A
+      - prim: 3/FAL 115 3215
+        rstate: R1A
+      - prim: 5/FAL 115 3215
+        rstate: R1A
+      - prim: 7/FAL 115 3215
+        rstate: R1A
+
+  # Details of the Source product structures
+  src_products:
+  # Source Code Product
+    - label: Source
+      number: CAV 101 0708
+      description: "ACM Runtime Source Code"
+      designation: "ACM Runtime Source Code"
+      # version:
+      # sourcing:
+      # uses_foss:
+
+  # Details of zero or more derivative product structures, use [] for zero
+  derivative_products:
+  # Label describing the product, must be unique per list item
+    - label: "helm"
+      number: "CXD 101 554"
+      designation: "ACM Runtime Helm Chart"
+      description: "ACM Runtime Helm Chart"
+      alias: ["eric-oss-acm-runtime"]
+      derivedFrom:
+        munin: CAV 101 0708
+
+    - label: "acmr-image"
+      number: "CXU 101 1911"
+      # version:
+      designation: "ACM Runtime Image"
+      description: "ACM Runtime Image"
+      includes:
+        # Common Base OS CBOS
+        - munin: CXC 201 2032
+          version: 6.13.0
+          secondPartyProduct: "True"
+        # Common Base OS Repo CBOS
+        - munin: CXC 201 2031
+          version: 6.13.0
+          secondPartyProduct: "True"
+      uses_foss:
+      #   # - munin:
+      #   #   version: 
+        - dependencies_file: releases/3.3.0/dependencies-acmr-7-1-2.yaml
+        # - foss_usage: foss.usage.yaml
+      uses_encryption:
+        - import: encryptions.yaml
+      derivedFrom:
+        munin: CAV 101 0708
+
+    - label: "readiness-image"
+      number: "CXU 101 1935"
+      # version:
+      designation: "ACM Runtime Readiness Image"
+      description: "ACM Runtime Readiness Image"
+      includes:
+        # Common Base OS CBOS
+        - munin: CXC 201 2032
+          version: 6.13.0
+          secondPartyProduct: "True"
+        # Common Base OS Repo CBOS
+        - munin: CXC 201 2031
+          version: 6.13.0
+          secondPartyProduct: "True"
+      derivedFrom:
+        munin: CAV 101 0708
+
+    - label: "envsubst-image"
+      number: "CXU 101 1936"
+      # version:
+      designation: "ACM Runtime Envsubst Image"
+      description: "ACM Runtime Envsubst Image"
+      includes:
+        # Common Base OS CBOS
+        - munin: CXC 201 2032
+          version: 6.13.0
+          secondPartyProduct: "True"
+        # Common Base OS Repo CBOS
+        - munin: CXC 201 2031
+          version: 6.13.0
+          secondPartyProduct: "True"
+      derivedFrom:
+        munin: CAV 101 0708
+
+    - label: "pg-client-image"
+      number: "CXU 101 1937"
+      # version:
+      designation: "ACM Runtime PG Client Image"
+      description: "ACM Runtime PG Client Image"
+      includes:
+        # Common Base OS CBOS
+        - munin: CXC 201 2032
+          version: 6.13.0
+          secondPartyProduct: "True"
+        # Common Base OS Repo CBOS
+        - munin: CXC 201 2031
+          version: 6.13.0
+          secondPartyProduct: "True"
+      derivedFrom:
+        munin: CAV 101 0708
+ 

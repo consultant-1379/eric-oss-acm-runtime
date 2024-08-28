@@ -1,0 +1,52 @@
+{{/*
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+*/}}
+
+{{ if .Values.kafkaConfig.useStrimziKafka }}
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: {{ include "eric-oss-acm-runtime.name" . }}-{{ .Values.kafkaConfig.acmKafkaUser }}
+  labels:
+  {{ if .Values.kafkaConfig.localKafkaCluster}}
+    strimzi.io/cluster: {{ include "eric-oss-acm-runtime.name" . }}
+  {{ else }}
+    strimzi.io/cluster: {{ .Values.global.kafkaClusterName }}
+  {{ end }}
+    {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  annotations: {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+spec:
+  authentication:
+{{ if .Values.kafkaConfig.localKafkaCluster }}
+    type: {{ .Values.kafkaConfig.saslMechanism }}
+{{ else }}
+    type: tls-external
+{{ end }}
+  authorization:
+    type: simple
+    acls:
+    - resource:
+        type: group
+        name: {{ .Values.kafkaConfig.kafka.consumer.groupId }}
+      operation: {{ .Values.kafkaConfig.kafka.consumer.groupOperations }}
+    - resource:
+        type: group
+        name: "*"
+      operation: {{ .Values.kafkaConfig.kafka.consumer.groupOperations }}
+    - resource:
+        type: topic
+        name: {{ .Values.kafkaConfig.acRuntimeTopic.name }}
+      operation: {{ .Values.kafkaConfig.acRuntimeTopic.operations }}
+    - resource:
+        type: topic
+        name: {{ .Values.kafkaConfig.syncTopic.name }}
+      operation: {{ .Values.kafkaConfig.syncTopic.operations }}
+{{ end }}

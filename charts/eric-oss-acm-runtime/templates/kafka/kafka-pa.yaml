@@ -1,0 +1,28 @@
+{{/*
+# ******************************************************************************
+# Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+*/}}
+
+{{ if .Values.kafkaConfig.localKafkaCluster }}
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+   name: {{ include "eric-oss-acm-runtime.name" . }}
+   annotations:
+     {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+   labels:
+     {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      acm: cluster
+  mtls:
+    mode: PERMISSIVE
+{{ end }}

@@ -1,0 +1,1901 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Software Technology. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Software Technology Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+modelVersion: 2.0
+
+description: "Policy ACM"
+
+# See image catalog: https://confluence.lmera.ericsson.se/display/ACD/ADP+CICD+Docker+Image+Catalog
+docker-images:
+  - adp-asciidoc-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-asciidocbuilder:${env.ASCII_DOC_BUILDER_TAG}
+  - adp-doc-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-docbuilder:${env.DOC_BUILDER_TAG}
+  - adp-helm-dr-check: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/common-library-adp-helm-dr-check:${env.HELM_DR_CHECK_TAG}
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:${env.HELM_KUBECTL_TAG}
+  - adp-image-dr-check: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/adp-image-dr-check:${env.IMAGE_DR_CHECK_TAG}
+  - adp-maven-builder: armdocker.rnd.ericsson.se/proj-eric-oss-dev-test/est-bob-java11mvnbuilder:${env.MVN_BUILDER_TAG}
+  - adp-maven-java17builder-orig: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-java17mvnbuilder:${env.JAVA17_MVN_BUILDER_ORIG_TAG}
+  - adp-maven-java17builder: armdocker.rnd.ericsson.se/proj-eric-oss-dev-test/est-bob-java17mvnbuilder:${env.JAVA17_MVN_BUILDER_TAG}
+  - adp-release-auto: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-adp-release-auto:${env.RELEASE_AUTO_TAG}
+  - adp-release-auto-foss: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-adp-release-auto:${env.RELEASE_AUTO_TAG_FOSS}
+  - elib-make-utilities: ${elib-make-subpath}-oss-drop/eric-elib/elib_makeutilities:${env.ELIB_MAKE_UTILITIES_TAG}
+  - bth-linter: armdocker.rnd.ericsson.se/proj-eric-oss-drop/eric-bth/eric-bth-spectral-linter:${env.BTH_LINTER_TAG}
+  - sdk-validator: armdocker.rnd.ericsson.se/proj-eric-oss-sdkschema-drop/eric-oss-sdkschema-validator:${env.SDKSCHEMA_VALIDATOR_TAG}
+  - grype-scan: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-image-scanning-grype:${env.ANCHORE_TAG}
+  - trivy-inline-scan: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/trivy-inline-scan:${env.TRIVY_TAG}
+  - va-scan-kubesec: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubesec:${env.KUBESEC_TAG}
+  - va-scan-kubeaudit: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubeaudit:${env.KUBEAUDIT_TAG}
+  - va-scan-kubehunter: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubehunter:${env.KUBEHUNTER_TAG}
+  - hadolint-scan: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/hadolint-scan:${env.HADOLINT_TAG}
+  - dockerfile-translator-image: armdocker.rnd.ericsson.se/proj-est-policy/dockerfile-translator-image:latest
+  - dockerfile-translator-image-publish: armdocker.rnd.ericsson.se/proj-est-policy/dockerfile-translator-image:latest
+  - va-summary: armdocker.rnd.ericsson.se/proj-axis_test/va-summary:${env.SUMMARY_TAG}
+  - cihelm: armdocker.rnd.ericsson.se/proj-eric-oss-dev-test/cihelm:${env.CIHELM_TAG}
+  # CBO-based images for rpm-license scan:
+  - acm-runtime-image: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime:${env.RELEASE_CANDIDATE}
+  - acm-runtime-readiness-image: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-readiness:${env.RELEASE_CANDIDATE}
+  - acm-runtime-envsubst-image: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-envsubst:${env.RELEASE_CANDIDATE}
+  - acm-runtime-crunchypostgres-image: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-crunchypostgres:${env.RELEASE_CANDIDATE}
+
+import:
+  common: common-properties.yaml
+
+# List of constants
+properties:
+  - elib-make-subpath: armdocker.rnd.ericsson.se/proj-eric
+  - project-subpath: proj-est-policy
+  - image-registry-path: armdocker.rnd.ericsson.se
+  - image-secret: armdocker
+  - image-dev-repopath: ${image-registry-path}-dev
+  - image-repopath: proj-est-policy
+  - image-ci-repopath: ${image-registry-path}/${image-repopath}
+  - image-drop-repopath: ${image-registry-path}-drop
+  - image-ci-full-name: ${image-ci-repopath}/${env.ACM_IMAGE}
+  - image-full-name: ${image-drop-repopath}/${env.ACM_IMAGE}
+  - image-released-proj: proj-adp-ref-app-released
+
+  # Helm Chart name must follow the pattern: eric-[a-z0-9]{1,5}-[a-z0-9-]{1,30}
+  - helm-chart-repo-server-path: https://arm.seli.gic.ericsson.se/artifactory/proj-est-onap
+  - helm-chart-dev-repopath: ${helm-chart-repo-server-path}-dev-helm
+  - helm-chart-ci-repopath: ${helm-chart-repo-server-path}-helm-local
+  - helm-chart-drop-repo: ${helm-chart-repo-server-path}-drop-helm
+  - helm-chart-released-repo: ${helm-chart-repo-server-path}-drop-helm
+  - helm-chart-file-name-crd: ${common.helm-chart-name-crd}-${var.released-version-crd}.tgz
+  - doc-arm-dev-repo: https://arm.seli.gic.ericsson.se/artifactory/proj-est-onap-dev-local/eric-oss-acm-runtime/
+  - doc-arm-release-repo: https://arm.seli.gic.ericsson.se/artifactory/proj-est-onap-release-local/eric-oss-acm-runtime/
+
+  # Generic repository for publishing artifacts such as documentation
+  - generic-drop-repo: ${helm-chart-repo-server-path}-drop-generic
+
+  # Functional ID for your Team or CI group to push to Gerrit repo
+  - git-user: ossadmin
+  - git-repo-path: OSS/com.ericsson.oss.se/microservice-chassis
+  - git-repo-url: ssh://${git-user}@gerrit.ericsson.se:29418/${git-repo-path}
+  - git-repo: https://gerrit.ericsson.se/#/admin/projects/${git-repo-path}
+
+  - enabled-helm-design-rules: ""
+
+  # FOSSA
+  - fossa-server-endpoint: https://scasfossa.internal.ericsson.com
+  - fossa-ci-repopath: ${helm-chart-repo-server-path}-dev-generic-local/fossa
+  - fossa-service-name: est-cps-core-ms
+  - fossa-scan-report-artifact-path: ${fossa-ci-repopath}/${fossa-service-name}
+  - fossa-scan-artifact-file-name: ${fossa-service-name}-${var.commithash}.tgz
+  - fossa-project-name-common: est-policy-common
+  - fossa-project-name-models: est-policy-models
+  - fossa-project-name-runtime-acm: est-policy-acm
+  - fossa-report-name-common: fossa-report-common.json
+  - fossa-report-name-models: fossa-report-models.json
+  - fossa-report-name-runtime-acm: fossa-report-acm.json
+  - dependency-file-name-common: dependencies-common.yaml
+  - dependency-file-name-models: dependencies-models.yaml
+  - dependency-file-name-runtime-acm: dependencies-acm.yaml
+  - dependency-file-name: dependencies.yaml
+  - dependency-enriched-file-name: dependencies-enriched.yaml
+  - fossa-team-name: est-foss-kraken
+  - fossa-config-location: ${env.PWD}/.fossa.yml
+  - docker-params: "--workdir ${env.PWD}"
+
+  # Diff Report
+  - release-dependencies-file-list: dependencies-release-list.txt
+  - generated-dependencies-file-list: dependencies-generated-list.txt
+  - diff-report-unified: dependencies-diff-unified.txt
+  - diff-report-side-by-side: dependencies-diff-side-by-side.txt
+
+  # License Agreement Files
+  # fossa reports to be gathered at the same time as the dependencies.yaml file is,
+  #   so that the information among them corresponds as much as possible
+  #   (those marked with additional X, were not gathered at the exact same time)
+  # see env section for fossa-report files
+  - license-agreement-fragment: license-agreement-fragment.json
+  - license-agreement-rpm-acm-runtime: build/rpm-license-agreement-acmr.json
+  - license-agreement-rpm-acm-readiness: build/rpm-license-agreement-acm-readiness.json
+  - license-agreement-rpm-acm-envsubst: build/rpm-license-agreement-acm-envsubst.json
+  - license-agreement-rpm-crunchpostgres: build/rpm-license-agreement-crunchypg.json
+    # the name of the released license agreement should be "license.agreement.json"
+  - release-license-agreement: license.agreement.json
+  - release-license-markdown-document: license.agreement.md
+
+  # VA IMAGES
+  - image-to-scan: ${env.ACM_IMAGE}:${env.VERSION_TAG}
+  - anchore-grype-image: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-image-scanning-grype:latest
+  - trivy-image: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/trivy-inline-scan:latest
+
+  # GITCA
+  - gitca-repo-name: oss-eric-oss-acm-runtime
+  - source-product-number: CAV1010708
+
+  # ACA
+  - aca-container-name: eiap-app-dom-spec
+
+  # Docker image drop path
+  - image-drop-path: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime
+  - image-readiness-drop-path: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-readiness
+  - image-envsubst-drop-path: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-envsubst
+  - image-crunchy-drop-path: ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-crunchypostgres
+
+  # Released Artifacts
+  - helm-chart-released-folder: 'build/released-charts'
+  - image-released-path: lib.sw.ericsson.net/eiap-app-dom-spec/eric-oss-acm-runtime:${env.RELEASE_CANDIDATE}
+  - image-readiness-released-path: lib.sw.ericsson.net/eiap-app-dom-spec/eric-oss-acm-runtime-readiness:${env.RELEASE_CANDIDATE}
+  - image-envsubst-released-path: lib.sw.ericsson.net/eiap-app-dom-spec/eric-oss-acm-runtime-envsubst:${env.RELEASE_CANDIDATE}
+  - image-crunchy-released-path: lib.sw.ericsson.net/eiap-app-dom-spec/eric-oss-acm-runtime-crunchyprostgres:${env.RELEASE_CANDIDATE}
+  - release-product-structure-file: fossa/product_structure.yaml
+
+# import environment variables (For example: Jenkins parameters)
+env:
+  - DOCKER_NETWORK (default=--network host)
+  - HOME
+  - MAVEN_CLI_OPTS (default=-Duser.home=${env.HOME} -B -U)
+  - MAVEN_OPTS (default=-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn)
+  - PWD
+  - RELEASE (default=false)
+  - INT_RELEASE(default=false)
+  - DOCKER_VOLUME_MAPPING_PASSWD (default=--volume ${env.HOME}/mypasswd:/etc/passwd:ro)
+  - PROJ_MVN (default=/proj/mvn)
+  - DEBUG (default=false)
+  - RELEASE_CANDIDATE
+  - RELEASE_DEPENDENCIES_FILE
+  - PREP_DEPENDENCIES_FILE
+  - ACM_RELEASE_SOURCE_COMMITHASH
+
+  # Policy
+  - VERSION_TAG
+  - ACM_REPO
+  - ACM_IMAGE
+  - ADP_BASE_VERSION
+  - BASE_IMAGE_REG_PATH
+  - HELM_CHART_NAME
+  - MVN_PARAMS (default=-DskipTests  -Ddocker.pull.registry=${env.BASE_IMAGE_REG_PATH} -Ddocker.push.registry=${env.BASE_IMAGE_REG_PATH})
+  - MVN_PARAMS_TEST (default=-DskipITs -Ddocker.pull.registry=${env.BASE_IMAGE_REG_PATH} -Ddocker.push.registry=${env.BASE_IMAGE_REG_PATH})
+  - GLOBAL_PULLSECRET (default= )
+  - DATASTORE_POSTGRES_VERSION
+  - DOCKERFILE_PATH
+  - DOCKER_IMAGE_TAG
+  - ROBOT_TEST_IMAGE_NAME
+  - POLICY_RUNTIME_ACM_TEST_CASE
+  - TEST_CHART_NAME
+  # Kubernetes
+  - COLLECT_LOGS_SCRIPT_LOCATION (default="https://arm.sero.gic.ericsson.se/artifactory/proj-ADP_GS_Support_FTP-generic-local/collect_ADP_logs")
+  - COLLECT_LOGS_SCRIPT_FILE_NAME (default="collect_ADP_logs.sh")
+  - COLLECT_LOGS_SINCE_RELATIVE_TIME (default="2h")
+  - COLLECT_LOGS_DIR (default=./k8s-logs)
+  - ENABLE_HELM_V3 (default=true)
+  - HELM_INSTALL_TIMEOUT (default=10m0s)
+  #- HELM_RELEASE (default=${common.helm-chart-name}-release)
+  - HELM_TEST_TIMEOUT (default=5m0s)
+  - HELM_VERSION (default="3.5.2")
+  - K8S_NAMESPACE (default=${common.docker-image-name}-${var.commithash})
+  - KUBECONFIG (default=${env.HOME}/.kube/config)
+  - BUILD_DIR (default=./build)
+  - KAAS_INFO_FILE (default=${env.BUILD_DIR}/kaas-info.log)
+
+  # Credentials
+  - DOCKER_CONFIG (default=$HOME/.docker/config.json)
+  - ERIDOC_USERNAME
+  - ERIDOC_PASSWORD
+  - GERRIT_USERNAME
+  - GERRIT_PASSWORD
+  - GERRIT_CHANGE_NUMBER
+  - JIRA_USERNAME
+  - JIRA_PASSWORD
+  - SELI_ARTIFACTORY_REPO_USER
+  - SELI_ARTIFACTORY_REPO_PASS
+  - SERO_ARTIFACTORY_REPO_USER
+  - SERO_ARTIFACTORY_REPO_PASS
+  - ERICSSON_ARM_USERNAME
+  - ERICSSON_ARM_PASSWORD
+  - GERRIT_REVIEW_PASS_USER
+  - GERRIT_REVIEW_PASS_PASS
+  - SZOP_ADP_PORTAL_API_KEY (default=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtc2lkIjoiNjM0NTIyYmRkZmQ5YWYwMDk3YjFkNjlhIiwiaW52YWxfc2VjcmV0IjoiZXBoZWo3MGticiJ9.94py1zXO8vipUKJfqTRnVrM5vW9nDBDSchSCb7_OPFo)
+
+
+  # Default docker image tags
+  - ASCII_DOC_BUILDER_TAG (default=latest)
+  - DOC_BUILDER_TAG (default=2.3.0-latest)
+  - ELIB_MAKE_UTILITIES_TAG (default=latest)
+  - HELM_DR_CHECK_TAG (default=latest)
+  - HELM_KUBECTL_TAG (default=2.0.3-latest)
+  - IMAGE_DR_CHECK_TAG (default=latest)
+  - MVN_BUILDER_TAG (default=latest)
+  - JAVA17_MVN_BUILDER_ORIG_TAG (default=latest)
+  - JAVA17_MVN_BUILDER_TAG (default=python3-latest)
+  - RELEASE_AUTO_TAG (default=latest)
+  - BTH_LINTER_TAG (default=latest)
+  - SDKSCHEMA_VALIDATOR_TAG (default=latest)
+  - CIHELM_TAG (default=0.6.2)
+
+  # VA Tools docker image tags
+  - ANCHORE_TAG (default=latest)
+  - TRIVY_TAG (default=latest)
+  - KUBESEC_TAG (default=latest)
+  - KUBEAUDIT_TAG (default=latest)
+  - KUBEHUNTER_TAG (default=latest)
+  - HADOLINT_TAG (default=latest)
+  - SUMMARY_TAG (default=latest)
+
+  # SonarQube
+  - SONAR_AUTH_TOKEN
+  - SONAR_HOST_URL
+  - SONAR_BRANCH (default="master")
+
+  # REST2HTML - Document Number of the REST Container file (The decimal class for a container is 190 89-)
+  - REST2HTML_NUM (default="190 89-CAAH 101 091/1")
+
+  # BTH Linter
+  - OPEN_API_SPEC_DIRECTORY (default=src/main/resources/v1)
+
+  # FOSSA
+  - FOSSA_ARTIFACT_HASH
+  - FOSSA_API_KEY
+  - ADP_BOB_SCAS_NAME_MAP
+  - OVERRIDE_SCAS_NAME_MAP
+  - PROJECT_SCAS_NAME_MAP
+  - DEP_REG_PROD_ID
+  - DEP_REG_VER_ID
+  - DEP_REG_DRY_RUN
+
+  # X-RAY
+  - XRAY_USER
+  - XRAY_APIKEY
+
+  # VHUB
+  - VHUB_API_TOKEN
+
+  # SCAS
+  - SCAS_TOKEN
+
+  # MUNIN
+  - MUNIN_TOKEN
+
+  # GitCA
+  - GITCA_USERNAME
+  - GITCA_PASSWORD
+  - DRY_RUN (default=true)
+
+  # ACA
+  - ACA_USERNAME
+  - ACA_PASSWORD
+
+  - CIHELM_RETRY_TIMEOUT (default = 600)
+  - CIHELM_RETRY_SLEEP (default = 30)
+  - CIHELM_HTTP_RETRY (default = 10)
+
+  # License Agreement Files
+  - FOSSA_REPORT_COMMON
+  - FOSSA_REPORT_MODELS
+  - FOSSA_REPORT_RUNTIME_ACM
+  - MANUAL_LICENSE_AGREEMENT
+
+# Variables, set by below tasks
+var:
+  - commithash
+  - commithash-full
+  - commit-author
+  - commit-email
+  - docker-config-basepath
+  - fossa-revision-common
+  - fossa-revision-models
+  - fossa-revision-runtime-acm
+  - image-registry
+  - helm-chart-repo-internal
+  - image-full-name-internal
+  - image-repopath-internal
+  - image-repopath-drop
+  - pom-version
+  - rest2html-optional
+  - revision
+  - rstate
+  - version
+  - version-prefix
+  - image-dr-vm-args
+  - kaas-version
+  - kaas-current-context
+  - resultcode_hadolint_check
+  - save-namespace
+  - image-repo-common
+  - released-version
+  - released-version-without-build-number
+  - release-tag
+  - maven-deploy-skip
+
+# Rules to execute
+rules:
+
+  # Integrated rule to execute everything locally (init-dev)
+  release:
+    - rule: clean
+    - rule: init-dev
+    - rule: lint
+    - rule: build
+    - rule: test
+    - rule: image
+    - rule: image-dr-check
+    - rule: package
+    - rule: package-jars
+    - rule: k8s-test
+
+  # Clean workspace
+  clean:
+    - task: rm
+      cmd:
+        - rm -rf .bob/
+        - rm -rf build/
+        - rm -rf k8s-logs/
+        - rm -f artifact.properties
+        - rm -f rest2html*.zip
+        - rm -f rest_conversion_log.txt
+        - rm -f src/main/resources/v1/*.zip
+        - rm -f helm-install-dry-run.log
+    - task: mvn-clean
+      docker-image: adp-maven-java17builder
+      docker-flags: &mvn-docker-flags
+        - ${env.DOCKER_NETWORK}
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--env ERICSSON_ARM_USERNAME"
+        - "--env ERICSSON_ARM_PASSWORD"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--volume ${env.HOME}:${env.HOME}"
+      cmd: mvn ${env.MAVEN_CLI_OPTS} clean -f clamp/runtime-acm/pom.xml
+
+  # Common tasks for all init rules
+  init-common:
+    - task: version
+      docker-image: adp-release-auto
+      docker-flags:
+        - "--env INT_RELEASE"
+      cmd: generate-version --is-release ${env.INT_RELEASE} --output version
+    - task: rstate
+      docker-image: adp-release-auto
+      cmd: get_rstate.py ${var.version} > .bob/var.rstate
+    - task: commit
+      docker-image: adp-release-auto
+      cmd:
+        - git rev-parse --short HEAD > .bob/var.commithash
+        - git rev-parse HEAD > .bob/var.commithash-full
+        - git log -1 --format='%aN' > .bob/var.commit-author
+        - git log -1 --format='%aE' > .bob/var.commit-email
+    - task: pom-version
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags
+      cmd: mvn ${env.MAVEN_CLI_OPTS} help:evaluate -Dexpression=project.version -q -DforceStdout > .bob/var.pom-version
+    - task: create-temp-dir
+      cmd: mkdir -p ${env.BUILD_DIR}
+
+  # Dev Tasks: only used by manually publishing development/black builds by developers
+  init-dev:
+    - rule: init-common
+    - task: preliminary-revision # For example: PA1
+      cmd: RSTATE=${var.rstate} && echo P${RSTATE:2}1 > .bob/var.revision
+    - task: image-repopath-internal
+      cmd: echo "${image-dev-repopath}" | cut -f2- -d '/' > .bob/var.image-repopath-internal
+    - task: image-registry
+      cmd: echo "${image-dev-repopath}" | cut -f1 -d '/' > .bob/var.image-registry
+    - task: image-full-name-internal
+      cmd: echo "${image-dev-repopath}/${common.docker-image-name}" > .bob/var.image-full-name-internal
+    - task: helm-chart-repo-internal
+      cmd: echo "${helm-chart-dev-repopath}" > .bob/var.helm-chart-repo-internal
+    - task: image-dr-vm-args
+      cmd: echo " -DimageDesignRule.config.DR-D470203-041-A=disable -DimageDesignRule.config.DR-D470203-050-A=disable" > .bob/var.image-dr-vm-args
+
+  # CI-Internal Tasks: used by CI to use as temporary storage for testing, only CI user has write access.
+  init-precodereview:
+    - rule: init-common
+    - task: preliminary-revision # For example: PA1
+      cmd: RSTATE=${var.rstate} && echo P${RSTATE:2}1 > .bob/var.revision
+    - task: image-repo-common
+      cmd: echo "${image-repopath-internal}" | cut -f2- -d '/' > .bob/var.image-repo-common
+    - task: image-repopath-internal
+      cmd: echo "${image-ci-repopath}" | cut -f2- -d '/' > .bob/var.image-repopath-internal
+    - task: image-registry
+      cmd: echo "${image-ci-repopath}" | cut -f1 -d '/' > .bob/var.image-registry
+    - task: image-full-name-internal
+      cmd: echo "${image-ci-repopath}/${common.docker-image-name}" > .bob/var.image-full-name-internal
+    - task: helm-chart-repo-internal
+      cmd: echo "${helm-chart-ci-repopath}" > .bob/var.helm-chart-repo-internal
+    - task: image-dr-vm-args
+      cmd: echo " -DimageDesignRule.config.DR-D470203-041-A=disable -DimageDesignRule.config.DR-D470203-050-A=disable" > .bob/var.image-dr-vm-args
+    - task: modify-version
+      cmd: sed -i 's/'.dirty'//g' .bob/var.version
+
+  # Drop level tasks: used by CI to publish artifacts after successful CI pipeline execution for a drop build
+  init-drop:
+    - rule: init-common
+    - task: full-revision # For example: A (Note: The Letters I O P Q R W must never be used for Document Revisioning.
+      cmd:
+        - RSTATE=${var.rstate} && echo ${RSTATE:2} > .bob/var.revision
+        - echo -cpi > .bob/var.rest2html-optional
+    - task: image-repo-common
+      cmd: echo "${image-repopath}" | cut -f2- -d '/' > .bob/var.image-repo-common
+    - task: image-repopath-internal
+      cmd: echo "${image-ci-repopath}" | cut -f2- -d '/' > .bob/var.image-repopath-internal
+    - task: image-repopath-drop
+      cmd: echo "${image-drop-repopath}" | cut -f2- -d '/' > .bob/var.image-repopath-drop
+    - task: image-registry
+      cmd: echo "${image-ci-repopath}" | cut -f1 -d '/' > .bob/var.image-registry
+    - task: image-full-name-internal
+      cmd: echo "${image-ci-repopath}/${common.docker-image-name}" > .bob/var.image-full-name-internal
+    - task: helm-chart-repo-internal
+      cmd: echo "${helm-chart-ci-repopath}" > .bob/var.helm-chart-repo-internal
+    - task: modify-version
+      cmd: sed -i 's/'.dirty'//g' .bob/var.version
+    - task: adp-artifacts-properties
+      docker-image: adp-release-auto
+      cmd: generate-adp-artifacts
+        --chart-name ${env.HELM_CHART_NAME}
+        --chart-version ${var.version}
+        --chart-repo ${helm-chart-drop-repo}
+        --image-name ${common.docker-image-name}
+        --image-version ${var.version}
+        --image-repo "${var.image-registry}/${image-repopath}"
+    - task: write-git-details
+      cmd:
+        - echo "GIT_TAG=$(git log -1 --pretty=format:'%h')" >> artifact.properties
+        - echo "GIT_COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')" >> artifact.properties
+        - echo "GIT_COMMIT_AUTHOR_EMAIL=$(git log -1 --format='%aE')" >> artifact.properties
+        - echo "GIT_COMMIT_SUMMARY=$(git log -1 --pretty=format:'%s')" >> artifact.properties
+    - task: image-dr-vm-args
+      cmd: echo "-DimageDesignRule.config.DR-D470203-050-A=disable" > .bob/var.image-dr-vm-args
+
+  init-release:
+    - task: generate-released-version
+      docker-image: adp-release-auto
+      cmd:
+        - version-handler convert-version
+          -s ${env.RELEASE_CANDIDATE} -o .bob/var.released-version
+        - cat .bob/var.released-version | cut -d '+' -f 1 > .bob/var.released-version-without-build-number
+    - task: version
+      cmd: echo ${var.released-version} > .bob/var.version
+    - task: helmchart-file-name
+      cmd: echo ${common.helm-chart-name}-${var.released-version}.tgz > .bob/var.helmchart-file-name
+    - task: adp-artifacts-properties
+      docker-image: adp-release-auto
+      cmd: generate-adp-artifacts
+          --chart-name ${common.helm-chart-name}
+          --chart-version ${var.released-version}
+          --chart-repo ${helm-chart-released-repo}
+
+  lint:
+    - task: markdownlint
+      docker-image: adp-doc-builder
+      cmd: bash -c 'markdownlint --config /etc/markdownlint-cli/adp.yaml $(git ls-files -- \*\.md | cat | xargs)' || true
+    - task: vale
+      docker-image: adp-doc-builder
+      cmd: bash -c 'vale --output line --no-wrap $(git ls-files -- \*\.md | cat | xargs)' || true
+    - task: helmdependencyupdate
+      docker-image: adp-helm-dr-check
+      docker-flags:
+        - "--env ENABLE_HELM_V3=true"
+        - ${env.DOCKER_NETWORK}
+      cmd: helm3 dependency update charts/${env.HELM_CHART_NAME}
+    - task: helm
+      docker-image: adp-helm-dr-check
+      docker-flags:
+        - "--env ENABLE_HELM_V3=true"
+        - ${env.DOCKER_NETWORK}
+      cmd: helm3 lint charts/${env.HELM_CHART_NAME}
+    - task: helm-chart-check
+      docker-image: adp-helm-dr-check
+      cmd: helm-dr-check --helm-chart charts/${env.HELM_CHART_NAME} ${enabled-helm-design-rules} --helm-v3 --output .bob/
+    - task: license-check
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags
+      cmd: mvn ${env.MAVEN_CLI_OPTS} license:check -DskipTests=true
+    - task: checkstyle
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags
+      cmd: mvn ${env.MAVEN_CLI_OPTS} checkstyle:check -DskipTests=true
+    - task: oas-bth-linter
+      docker-image: bth-linter
+      docker-flags:
+        - "--env OPEN_API_SPEC_DIRECTORY=${env.OPEN_API_SPEC_DIRECTORY}"
+        - "--env OUTPUT_DIRECTORY=.bob"
+      cmd: /bth-linter.sh
+    - task: metrics-check
+      cmd:
+        - . ./ci/scripts/metrics-checker.sh --chmod=+x && checkValuesYAML ${common.helm-chart-name}
+        - . ./ci/scripts/metrics-checker.sh && checkServiceYAML ${common.helm-chart-name}
+        - . ./ci/scripts/metrics-checker.sh && checkDeploymentYAML ${common.helm-chart-name}
+        - . ./ci/scripts/metrics-checker.sh && checkHelperTPL ${common.helm-chart-name}
+        - . ./ci/scripts/metrics-checker.sh && checkPomXML ${common.helm-chart-name}
+        - . ./ci/scripts/metrics-checker.sh && checkCoreApplicationJAVA ${common.helm-chart-name}
+        - . ./ci/scripts/metrics-checker.sh && passOrFailCheck
+  generate:
+    - rule: rest-2-html
+    - rule: generate-docs
+
+  # Generate HTML output files from OpenAPI spec
+  rest-2-html:
+    - task: check-has-open-api-been-modified
+      cmd:
+        - if [ -z "$(git diff --name-status HEAD~ | grep src/main/resources/v1/microservice-chassis-openapi.yaml)" ]; then
+            echo "NO modifications have been made to the OpenAPI spec.";
+            echo false > .bob/var.has-openapi-spec-been-modified;
+          else
+            echo "There HAS been modifications made to the OpenAPI spec.";
+            echo true > .bob/var.has-openapi-spec-been-modified;
+          fi
+    - task: zip-open-api-doc
+      docker-image: elib-make-utilities
+      cmd:
+        - ls -ltr src/main/resources/v1/
+        - sh -c 'cd src/main/resources/v1/ && zip -r microservice-chassis-openapi.zip microservice-chassis-openapi.yaml'
+        - ls -ltr src/main/resources/v1/
+    - task: generate-html-output-files
+      docker-image: elib-make-utilities
+      cmd:
+        - ls -ltr
+        - /usr/src/elib/makerestc
+           -inp src/main/resources/v1/microservice-chassis-openapi.zip
+           -oud .
+           -rev ${var.revision}
+           -inf ${var.commit-email}
+           -num ${env.REST2HTML_NUM}
+           -cre ${var.commit-author}
+           -app ${var.commit-author}
+           -d
+           ${var.rest2html-optional}
+        - ls -ltr
+        - cat rest_conversion_log.txt
+
+  # Generate documents: cpi sdifs and raml hml doc
+  generate-docs:
+    - task: asciidoc-to-sdif
+      docker-image: adp-asciidoc-builder
+      cmd: /adp_build_doc.sh --project-dir=${env.PWD}/policy-acm-customizations --build-dir=${env.PWD}
+    - task: prepare-for-marketplace
+      docker-image: adp-release-auto
+      cmd:
+        bash -c 'for i in $(find ./doc -maxdepth 1 ! -path ./doc -type d);
+        do
+        package_html.py -i $i/html -o $i/$(basename $i)_HTML.zip;
+        done'
+    - task: md-to-html
+      docker-image: adp-release-auto
+      cmd: 'doc-handler generate --config ${env.PWD}/marketplace/md_config.yaml --output ${env.PWD}/.bob/build/doc/html --format html --zip'
+
+  marketplace-upload-dev:
+    - task: upload-doc-to-arm
+      docker-image: adp-release-auto
+      cmd: marketplace upload --arm-api-token ${env.SELI_ARTIFACTORY_REPO_PASS}
+        --arm-url ${doc-arm-dev-repo}
+        --config ${env.PWD}/marketplace/marketplace_upload_config.yaml
+        --dev
+        --debug
+        --refresh
+        --portal-token ${env.SZOP_ADP_PORTAL_API_KEY}
+
+  marketplace-upload-release:
+    - task: upload-doc-to-arm
+      docker-image: adp-release-auto
+      cmd: marketplace upload --arm-api-token ${env.SELI_ARTIFACTORY_REPO_PASS}
+        --arm-url ${doc-arm-release-repo}
+        --config ${env.PWD}/marketplace/marketplace_upload_config.yaml
+        --version ${var.version}
+        --debug
+        --refresh
+        --portal-token ${env.SZOP_ADP_PORTAL_API_KEY}
+
+  #Replacing Dockerfile with Commonbase
+  translator:
+    - task: translate-dockerfile-precode
+      docker-image: dockerfile-translator-image
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--workdir /dockerfile-translator/"
+        - "--volume ${env.PWD}/clamp/:/dockerfile-translator/clamp/"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+      cmd: -D REPO_ROOT=. -D OUT_DIR=. --config=policy-ericsson/policy-config.yaml -D COMMON_BASE_VERSION=${env.ADP_BASE_VERSION} clamp
+    - task: translate-dockerfile-publish
+      docker-image: dockerfile-translator-image-publish
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--workdir /dockerfile-translator/"
+        - "--volume ${env.PWD}/clamp/:/dockerfile-translator/clamp/"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+      cmd: -D REPO_ROOT=. -D OUT_DIR=. --config=policy-ericsson/policy-config.yaml -D COMMON_BASE_VERSION=${env.ADP_BASE_VERSION} clamp
+
+  translator_db_migrator:
+    - task: translate-dockerfile
+      docker-image: dockerfile-translator-image
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--workdir /dockerfile-translator/"
+        - "--volume ${env.PWD}/docker/:/dockerfile-translator/docker/"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+      cmd: -D REPO_ROOT=. -D OUT_DIR=. --config=policy-ericsson/policy-config.yaml -D COMMON_BASE_VERSION=${env.ADP_BASE_VERSION} docker
+
+  # Build Readiness Image
+  build-readiness:
+    - rule: find-docker-config-basepath
+    - task: docker-readiness-imagebuild
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+      cmd: docker build ${env.PWD}/readiness --build-arg COMMON_BASE_VERSION=${env.ADP_BASE_VERSION} -t ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-readiness:${env.VERSION_TAG} --build-arg IMAGE_VERSION=${env.VERSION_TAG} --build-arg IMAGE_CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg IMAGE_REVISION=a439339
+
+  # Build Envsubst Image
+  build-envsubst:
+    - rule: find-docker-config-basepath
+    - task: docker-envsubst-imagebuild
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+      cmd: docker build ${env.PWD}/envsubst --build-arg COMMON_BASE_VERSION=${env.ADP_BASE_VERSION} -t ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-envsubst:${env.VERSION_TAG} --build-arg IMAGE_VERSION=${env.VERSION_TAG} --build-arg IMAGE_CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg IMAGE_REVISION=a439339
+
+  # Build Crunchypostgres Image
+  build-crunchypostgres:
+    - rule: find-docker-config-basepath
+    - task: docker-crunchypostgres-imagebuild
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+      cmd: docker build ${env.PWD}/policy-acm-customizations/helperContainers/crunchypostgres-customization/dockerfile-customization --build-arg COMMON_BASE_VERSION=${env.ADP_BASE_VERSION} -t ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-crunchypostgres:${env.VERSION_TAG} --build-arg IMAGE_VERSION=${env.VERSION_TAG} --build-arg IMAGE_CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg IMAGE_REVISION=a439339
+
+  build-db-migrator:
+    - rule: find-docker-config-basepath
+    - task: mvn-db-migrator-imagebuild
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+      cmd: mvn clean install -f ${env.PWD}/docker/policy-db-migrator/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS}  -Pdocker -DCOMMON_BASE_VERSION=${env.ADP_BASE_VERSION} -DIMAGE_VERSION=${env.VERSION_TAG}
+    - task: docker-tag
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env HOME=${env.HOME}"
+        - "--env DOCKER_REGISTRY=${image-registry-path}"
+        - "--env DOCKER_ORG=${image-repopath}"
+        - "--env DOCKER_TAG=${env.VERSION_TAG}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+      cmd: docker tag onap/policy-db-migrator:latest ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime-db-migrator:${env.VERSION_TAG}
+
+  # Build java source code and package jar file, no need image building at this stage
+  build-all-parent:
+    - rule: find-docker-config-basepath
+    - task: mvn-package parent
+      docker-image: adp-maven-java17builder
+      docker-flags: &mvn-docker-flags-with-creds
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--env ERICSSON_ARM_USERNAME=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env ERICSSON_ARM_PASSWORD=${env.SELI_ARTIFACTORY_REPO_PASS}"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+      cmd: mvn clean install -f ${env.PWD}/policy-parent/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS}
+    - task: mvn-package common
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags-with-creds
+      #cmd: rm -fr ~/.m2/repository/org/apache/logging/log4j/log4j/2.17.1
+      cmd: mvn clean install -f ${env.PWD}/policy-common/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS}
+    - task: mvn-package models
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags-with-creds
+      cmd: mvn clean install -f ${env.PWD}/policy-models/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dassembly.tarLongFileMode=posix
+
+  build:
+    - task: mvn-package clamp
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags-with-creds
+      cmd: mvn clean install -f ${env.PWD}/clamp/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dassembly.tarLongFileMode=posix -Pdocker -DCOMMON_BASE_VERSION=${env.ADP_BASE_VERSION} -DIMAGE_VERSION=${env.VERSION_TAG}
+    - task: mvn-package runtime-acm
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags-with-creds
+      cmd: mvn clean install -f ${env.PWD}/clamp/runtime-acm/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Pdocker
+
+  # Build a test docker image
+  Build-csit-robot-test-image:
+    - task: docker-robot-build
+      cmd:
+       - sh -c 'cd testautomation/${common.helm-chart-test}/robot && export DOCKER_IMAGE_TAG=${image-registry-path}/${image-repopath}/${env.ROBOT_TEST_IMAGE_NAME}:${env.VERSION_TAG} && ./build-robot-image.sh '
+       - docker push ${image-registry-path}/${image-repopath}/${env.ROBOT_TEST_IMAGE_NAME}:${env.VERSION_TAG}
+       - docker images
+
+  # Run csit test in pipeline
+  run-csit-robot-test:
+    - task: run-csit-test
+      docker-image: adp-helm-kubectl
+      docker-flags:
+      - ${env.DOCKER_NETWORK}
+      - "--env HOME=${env.HOME}"
+      - "--env KUBECONFIG=${env.KUBECONFIG}"
+      - "--env ENABLE_HELM_V3"
+      - "--env DOCKER_REGISTRY=${image-registry-path}"
+      - "--env DOCKER_ORG=${image-repopath}"
+      - "--env IMAGE_PULL_SECRET=${image-secret}"
+      - "--env IMAGE_TAG=${env.VERSION_TAG}"
+      - "--env IMAGE_NAME=${env.ROBOT_TEST_IMAGE_NAME}"
+      - "--env POLICY_RUNTIME_ACM_TEST_CASE=${env.POLICY_RUNTIME_ACM_TEST_CASE}"
+      - "--env NAMESPACE=${env.K8S_NAMESPACE}"
+      - "--env HELM_CHART_NAME=${env.TEST_CHART_NAME}"
+      - "--volume ${env.HOME}:${env.HOME}"
+      - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}"
+      - "--volume ${var.docker-config-basepath}:${var.docker-config-basepath}"
+      cmd:
+      - ./testautomation/${common.helm-chart-test}/robot/eric-oss-k8s-helm-install.sh
+
+  # Run unit tests and jacoco coverage for SonarQube analysis
+  test:
+    - task: mvn-package
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags-with-creds
+      cmd: mvn install -f ${env.PWD}/clamp/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS_TEST} -Dassembly.tarLongFileMode=posix jacoco:prepare-agent surefire-report:report-only -DshowSuccess=true
+
+  sonar-enterprise-pcr:
+    - task: generate-version-prefix
+      cmd: cat VERSION_PREFIX > .bob/var.version-prefix
+    - task: mvn-sonar-enterprise-sonarqube-analysis
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags-with-creds
+      cmd: mvn ${env.MAVEN_CLI_OPTS} -f ${env.PWD}/clamp/pom.xml ${env.MVN_PARAMS_TEST} sonar:sonar
+        -Dsonar.login=${env.SONAR_AUTH_TOKEN}
+        -Dsonar.host.url=${env.SONAR_HOST_URL}
+        -Dsonar.java.binaries=**/*
+
+  sonar-enterprise-release:
+    - task: sonarqube-analysis
+      docker-image: adp-maven-java17builder
+      docker-flags: *mvn-docker-flags-with-creds
+      cmd: mvn ${env.MAVEN_CLI_OPTS} -f ${env.PWD}/clamp/pom.xml ${env.MVN_PARAMS_TEST} sonar:sonar
+        -Dsonar.login=${env.SONAR_AUTH_TOKEN}
+        -Dsonar.host.url=${env.SONAR_HOST_URL}
+        -Dsonar.java.binaries=**/*
+
+  # Build a docker image pointing to dirty repository
+  image:
+    - rule: find-docker-config-basepath
+    - task: docker-build
+      docker-image: adp-maven-java17builder
+      docker-flags: &mvn-docker-flags-with-creds-image
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+        - "--env DOCKER_BUILD_ARGS=\"--tag ${var.image-full-name-internal}:${env.VERSION_TAG} --build-arg IMAGE_VERSION=${env.VERSION_TAG} --build-arg IMAGE_CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg COMMIT=${var.commithash}\""
+      cmd: mvn install -f ${env.PWD}/clamp/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dassembly.tarLongFileMode=posix -Pdocker -DCOMMON_BASE_VERSION=${env.ADP_BASE_VERSION} -DIMAGE_VERSION=${env.VERSION_TAG}
+    - task: docker-tag
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env HOME=${env.HOME}"
+        - "--env DOCKER_REGISTRY=${image-registry-path}"
+        - "--env DOCKER_ORG=${image-repopath}"
+        - "--env DOCKER_TAG=${env.VERSION_TAG}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+      cmd: docker tag onap/policy-clamp-runtime-acm:latest ${env.BASE_IMAGE_REG_PATH}/eric-oss-acm-runtime:${env.VERSION_TAG}
+
+  # Delete docker images created
+  delete-images:
+    - task: delete-internal-image
+      cmd: docker image remove ${env.BASE_IMAGE_REG_PATH}/${env.ACM_IMAGE}:${env.VERSION_TAG} || true
+    - task: delete-drop-image
+      cmd: docker image remove ${image-full-name}:${env.VERSION_TAG} || true
+
+  # Check for image design rule compliance
+  image-dr-check:
+    - task: check-image-dr
+      docker-image: adp-image-dr-check
+      docker-in-docker: socket
+      cmd: "image-dr-check
+          --image ${env.BASE_IMAGE_REG_PATH}/${env.ACM_IMAGE}:${env.VERSION_TAG}
+          --output .bob/check-image/${env.ACM_IMAGE}:${env.VERSION_TAG}
+          ${var.image-dr-vm-args}"
+
+  package-image:
+    - rule: find-docker-config-basepath
+    - task: image-push-internal
+      cmd: docker push ${env.BASE_IMAGE_REG_PATH}/${env.ACM_IMAGE}:${env.VERSION_TAG}
+  # Push image to ci-internal repo and create local version of helm chart
+  package-local:
+    - rule: find-docker-config-basepath
+    - task: package-helm-internal
+      docker-image: adp-release-auto
+      docker-flags: &docker_flags_kube_config_package
+        - ${env.DOCKER_NETWORK}
+        - "--env HOME=${env.HOME}"
+        - "--env K8S_NAMESPACE=${env.K8S_NAMESPACE}"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env ENABLE_HELM_V3"
+        - "--env HELM_VERSION"
+        - "--env SELI_ARTIFACTORY_REPO_USER=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env SELI_ARTIFACTORY_REPO_PASS=\"${env.SELI_ARTIFACTORY_REPO_PASS}\""
+        - "--env ERICSSON_ARM_USERNAME=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env ERICSSON_ARM_PASSWORD=${env.SELI_ARTIFACTORY_REPO_PASS}"
+        - "--env COLLECT_LOGS_SCRIPT_LOCATION"
+        - "--volume ${env.PWD}:${env.PWD}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume ${env.DOCKER_CONFIG}:${env.HOME}/.docker/config.json"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+        - "--volume ${var.docker-config-basepath}:${var.docker-config-basepath}"
+      cmd: helm-package
+        --folder charts/${env.HELM_CHART_NAME}
+        --workdir .bob --output .bob/${env.HELM_CHART_NAME}-internal
+        --version ${env.VERSION_TAG}
+        --replace eric-product-info.yaml:VERSION=${env.VERSION_TAG}
+        --replace eric-product-info.yaml:REPO_PATH=${var.image-repopath-internal}
+        --replace eric-product-info.yaml:IMAGE_NAME=${common.docker-image-name}
+
+  # Push image to ci-internal repo, create internal version of helm chart and pushes it to internal repo
+  package:
+    - rule: package-local
+    - task: helm-upload-internal
+      docker-image: adp-release-auto
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--env ENABLE_HELM_V3=true"
+      cmd: upload_file.sh
+        --filename=.bob/${env.HELM_CHART_NAME}-internal/${env.HELM_CHART_NAME}-${env.VERSION_TAG}.tgz
+        --repository=${var.helm-chart-repo-internal}/${env.HELM_CHART_NAME}
+        --api-token=${env.SELI_ARTIFACTORY_REPO_PASS}
+        --overwrite=true
+
+  check-if-exists:
+    - task: check-if-clamp-exists
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env HOME=${env.HOME}"
+        - "--env K8S_NAMESPACE=${env.K8S_NAMESPACE}"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env ENABLE_HELM_V3"
+        - "--env HELM_VERSION"
+        - "--env SELI_ARTIFACTORY_REPO_USER=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env SELI_ARTIFACTORY_REPO_PASS=\"${env.SELI_ARTIFACTORY_REPO_PASS}\""
+        - "--env ERICSSON_ARM_USERNAME=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env ERICSSON_ARM_PASSWORD=${env.SELI_ARTIFACTORY_REPO_PASS}"
+        - "--env COLLECT_LOGS_SCRIPT_LOCATION"
+        - "--volume ${env.PWD}:${env.PWD}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--volume ${env.DOCKER_CONFIG}:${env.HOME}/.docker/config.json"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+        - "--volume ${var.docker-config-basepath}:${var.docker-config-basepath}"
+        - "--volume /proj/mvn:/proj/mvn"
+      cmd:
+        - mvn org.honton.chas:exists-maven-plugin:remote -f ${env.PWD}/clamp/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dexists.repository=https://arm.seli.gic.ericsson.se/artifactory/proj-est-onap-release-local/ -Dexists.serverId=armdocker.rnd.ericsson.se -Dexists.failIfNotExists=true
+        - bash -c 'if [ $? -ne 0 ];
+           then
+             echo false > .bob/var.maven-deploy-skip;
+           else
+             echo true > .bob/var.maven-deploy-skip;
+           fi'
+
+  package-jars:
+    - rule: find-docker-config-basepath
+    - task: mvn-package-parent
+      docker-image: adp-maven-java17builder
+      docker-flags: &docker_flags_kube_config_package_jar
+        - ${env.DOCKER_NETWORK}
+        - "--privileged"
+        - "--env HOME=${env.HOME}"
+        - "--env K8S_NAMESPACE=${env.K8S_NAMESPACE}"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env ENABLE_HELM_V3"
+        - "--env HELM_VERSION"
+        - "--env SELI_ARTIFACTORY_REPO_USER=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env SELI_ARTIFACTORY_REPO_PASS=\"${env.SELI_ARTIFACTORY_REPO_PASS}\""
+        - "--env ERICSSON_ARM_USERNAME=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env ERICSSON_ARM_PASSWORD=${env.SELI_ARTIFACTORY_REPO_PASS}"
+        - "--env COLLECT_LOGS_SCRIPT_LOCATION"
+        - "--volume ${env.PWD}:${env.PWD}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--volume ${env.DOCKER_CONFIG}:${env.HOME}/.docker/config.json"
+        - "--group-add $(stat -c '%g' /var/run/docker.sock)"
+        - "--volume /var/run/docker.sock:/var/run/docker.sock"
+        - "--volume ${var.docker-config-basepath}:${var.docker-config-basepath}"
+        - "--volume /proj/mvn:/proj/mvn"
+      cmd: mvn deploy -f ${env.PWD}/policy-parent/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dmaven.deploy.skip=${var.maven-deploy-skip}
+    - task: mvn-package common
+      docker-image: adp-maven-java17builder
+      docker-flags: *docker_flags_kube_config_package_jar
+      #cmd: rm -fr ~/.m2/repository/org/apache/logging/log4j/log4j/2.17.1
+      cmd: mvn deploy -f ${env.PWD}/policy-common/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dmaven.deploy.skip=${var.maven-deploy-skip}
+    - task: mvn-package models
+      docker-image: adp-maven-java17builder
+      docker-flags: *docker_flags_kube_config_package_jar
+      cmd: mvn deploy -f ${env.PWD}/policy-models/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dassembly.tarLongFileMode=posix -Dmaven.deploy.skip=${var.maven-deploy-skip}
+    - task: mvn-package clamp
+      docker-image: adp-maven-java17builder
+      docker-flags: *docker_flags_kube_config_package_jar
+      cmd: mvn deploy -f ${env.PWD}/clamp/pom.xml ${env.MAVEN_CLI_OPTS} ${env.MVN_PARAMS} -Dassembly.tarLongFileMode=posix -Ddocker.username=${env.ERICSSON_ARM_USERNAME} -Ddocker.password=${env.ERICSSON_ARM_PASSWORD} -Pdocker -DCOMMON_BASE_VERSION=${env.ADP_BASE_VERSION} -DIMAGE_VERSION=${env.VERSION_TAG} -Dmaven.deploy.skip=${var.maven-deploy-skip}
+
+  k8s-test:
+    - rule: find-docker-config-basepath
+    - rule: helm-dry-run
+    - rule: namespace-precheck
+    - rule: create-namespace
+    - rule: helm-install-prep
+    - rule: helm-install
+    - rule: healthcheck
+    - rule: helm-test
+    - rule: kaas-info
+    - rule: delete-namespace
+
+  find-docker-config-basepath:
+    - task: find-docker-config-basepath
+      cmd: dirname ${env.DOCKER_CONFIG} > .bob/var.docker-config-basepath
+
+  clean-clusterroles:
+    - rule: find-docker-config-basepath
+    - task: clean-strimzi-clusterroles
+      docker-image: adp-helm-kubectl
+      docker-flags: &docker_flags_kube_config
+        - ${env.DOCKER_NETWORK}
+        - "--env HOME=${env.HOME}"
+        - "--env K8S_NAMESPACE=${env.K8S_NAMESPACE}"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env ENABLE_HELM_V3"
+        - "--env HELM_VERSION"
+        - "--env SELI_ARTIFACTORY_REPO_USER=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env SELI_ARTIFACTORY_REPO_PASS=\"${env.SELI_ARTIFACTORY_REPO_PASS}\""
+        - "--env COLLECT_LOGS_SCRIPT_LOCATION"
+        - "--volume ${env.PWD}:${env.PWD}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}"
+        - "--volume ${var.docker-config-basepath}:${var.docker-config-basepath}"
+      cmd:
+        - kubectl delete clusterrole eric-oss-kf-sz-op-strimzi-cluster-operator-namespaced ||true
+        - kubectl delete clusterrole eric-oss-kf-sz-op-strimzi-cluster-operator-global ||true
+        - kubectl delete clusterrole eric-oss-kf-sz-op-strimzi-kafka-broker ||true
+        - kubectl delete clusterrole eric-oss-kf-sz-op-strimzi-entity-operator ||true
+        - kubectl delete clusterrole eric-oss-kf-sz-op-strimzi-kafka-client ||true
+        - kubectl delete clusterrolebinding eric-oss-kf-sz-op-strimzi-cluster-operator ||true
+        - kubectl delete clusterrolebinding eric-oss-kf-sz-op-strimzi-cluster-operator-kafka-broker-delegation ||true
+        - kubectl delete clusterrolebinding eric-oss-kf-sz-op-strimzi-cluster-operator-kafka-client-delegation ||true
+
+  helm-dry-run:
+    - rule: clean-clusterroles
+    - task: helm-dry-run
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: helm install ${env.HELM_CHART_NAME} .bob/${env.HELM_CHART_NAME}-internal/${env.HELM_CHART_NAME}-${env.VERSION_TAG}.tgz
+        --namespace ${env.K8S_NAMESPACE}
+        --dry-run
+        --debug > helm-install-dry-run.log
+
+  namespace-precheck:
+    - rule: find-docker-config-basepath
+    - task: find-all-namespaces
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl get ns ${env.K8S_NAMESPACE} | awk '{if($1=="${env.K8S_NAMESPACE}") print $1};' > .bob/var.save-namespace || true
+    - task: delete-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl delete namespace ${var.save-namespace} || true
+
+  create-namespace:
+    - rule: namespace-precheck
+    - rule: find-docker-config-basepath
+    - task: create-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl create namespace ${env.K8S_NAMESPACE}
+
+  helm-install-prep:
+    - rule: find-docker-config-basepath
+    - task: create-namespace-if-not-exists
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl create namespace ${env.K8S_NAMESPACE} || true
+    - task: create-secret1
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl create secret generic usersecret
+        --from-literal=custom-user=policy_user
+        --from-literal=custom-pwd=custompwd
+        --from-literal=super-pwd=superpwd
+        --from-literal=metrics-pwd=metricspwd
+        --from-literal=replica-user=replicauser
+        --from-literal=replica-pwd=replicapwd
+        --namespace=${env.K8S_NAMESPACE} || true
+    - task: helm-install-prep
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl create secret generic ${image-secret}
+        --from-file=.dockerconfigjson=${env.DOCKER_CONFIG}
+        --type=kubernetes.io/dockerconfigjson
+        --namespace ${env.K8S_NAMESPACE} || true
+
+  helm-install-dependencies:
+    - rule: helm-install-prep
+    - task: helm-repoadd-postgres
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: helm repo add eric-data-document-database-pg https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-adp-gs-all-helm
+    - task: helm-install-postgres-or-upgrade
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: helm upgrade
+        --install eric-data-document-database-pg eric-data-document-database-pg/eric-data-document-database-pg
+        --namespace ${env.K8S_NAMESPACE}
+        --set eric-log-shipper.logshipper.autodiscover.namespace=${env.K8S_NAMESPACE}
+        --set global.pullSecret=${image-secret}
+        --set global.security.tls.enabled=false
+        --set credentials.kubernetesSecretName=usersecret
+        --version ${env.DATASTORE_POSTGRES_VERSION}
+        ${env.GLOBAL_PULLSECRET}
+        --timeout ${env.HELM_INSTALL_TIMEOUT}
+        --wait
+
+  helm-install:
+    - task: helm-install-or-upgrade
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: helm upgrade
+        --install ${env.HELM_CHART_NAME} .bob/${env.HELM_CHART_NAME}-internal/${env.HELM_CHART_NAME}-${env.VERSION_TAG}.tgz
+        --namespace ${env.K8S_NAMESPACE}
+        -f charts/eric-oss-acm-runtime/values.yaml
+        -f charts/eric-oss-acm-runtime/standalone-values.yaml
+        --set imageCredentials.pullSecret=${image-secret}
+        --set global.security.tls.enabled=false
+        --set global.serviceMesh.enabled=false
+        --set kafkaConfig.useStrimziKafka=false
+        --set kafkaConfig.localKafkaCluster=false
+        --set db.password=custompwd
+        --set db.admin.password=superpwd
+        --set createDefaultRoles=true
+        --timeout ${env.HELM_INSTALL_TIMEOUT}
+        --wait
+
+  check-pods:
+    - task: get-secrets
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl get secrets -n ${env.K8S_NAMESPACE}
+    - task: get-deployments
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl get deployments -n ${env.K8S_NAMESPACE}
+    - task: get-pods
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl get pods -n ${env.K8S_NAMESPACE}
+    - task: describe-pods
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl describe pods -n ${env.K8S_NAMESPACE}
+    - task: get-PVC
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl describe pvc pg-data-eric-data-document-database-pg-0 -n ${env.K8S_NAMESPACE}
+
+  helm-install-kgb:
+    - rule: helm-install-prep
+    - task: prepare-helm-repo
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - helm repo add ${env.HELM_CHART_NAME} ${helm-chart-drop-repo} --username ${env.SELI_ARTIFACTORY_REPO_USER} --password ${env.SELI_ARTIFACTORY_REPO_PASS}
+        - helm repo update
+    - task: install-kgb-on-kubernetes
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: helm upgrade
+        --install ${env.HELM_CHART_NAME} ${env.HELM_CHART_NAME}/${env.HELM_CHART_NAME}
+        --namespace ${env.K8S_NAMESPACE}
+        --set eric-log-shipper.logshipper.autodiscover.namespace=${env.K8S_NAMESPACE}
+        --set imageCredentials.pullSecret=${image-secret}
+        --timeout ${env.HELM_INSTALL_TIMEOUT}
+        --wait
+        --devel
+    - rule: healthcheck
+
+  helm-upgrade:
+    - rule: helm-install-kgb
+    - rule: helm-install
+
+  healthcheck:
+    - rule: find-docker-config-basepath
+    - task: healthcheck
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: ./healthcheck.sh
+
+  helm-test:
+    - rule: helm-install-prep
+    - rule: find-docker-config-basepath
+    - task: install-on-kubernetes
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: helm test ${env.HELM_CHART_NAME}
+        --namespace ${env.K8S_NAMESPACE}
+        --timeout ${env.HELM_TEST_TIMEOUT}
+
+  kaas-info:
+    - task: get-kaas-info
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl get nodes -o=jsonpath='{.items[0].metadata.labels.kaas/version}' > .bob/var.kaas-version
+        - kubectl config current-context > .bob/var.kaas-current-context
+    - task: output-kaas-info
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - echo -e '# KaaS Version:' >> ${env.KAAS_INFO_FILE} >> ${env.KAAS_INFO_FILE}
+        - kubectl get nodes -o=jsonpath='{.items[0].metadata.labels.kaas/version}' >> ${env.KAAS_INFO_FILE}
+        - echo -e '\n\n# CCD Version:' >> ${env.KAAS_INFO_FILE} >> ${env.KAAS_INFO_FILE}
+        - kubectl get nodes -o=jsonpath='{.items[0].metadata.labels.erikube/version}' >> ${env.KAAS_INFO_FILE}
+        - echo -e '\n\n# KaaS Release Information:' >> ${env.KAAS_INFO_FILE}
+        - echo -e "Ericsson Web Services - https://ews.rnd.gic.ericsson.se/cd.php?cluster=${var.kaas-current-context}" >> ${env.KAAS_INFO_FILE}
+        - echo -e "KaaS release information - https://confluence.lmera.ericsson.se/display/AD/${var.kaas-version}" >> ${env.KAAS_INFO_FILE}
+        - echo -e '\n# Kubectl Version:' >> ${env.KAAS_INFO_FILE}
+        - kubectl version >> ${env.KAAS_INFO_FILE}
+        - echo -e '\n# Kubectl Cluster Info:' >> ${env.KAAS_INFO_FILE} >> ${env.KAAS_INFO_FILE}
+        - kubectl cluster-info | sed 's/\x1B\[[0-9;]\{1,\}[A-Za-z]//g' >> ${env.KAAS_INFO_FILE}
+        - echo -e '\n# Kubectl Config Context:' >> ${env.KAAS_INFO_FILE} >> ${env.KAAS_INFO_FILE}
+        - kubectl config get-contexts >> ${env.KAAS_INFO_FILE}
+        - echo -e '\n# Helm Version:' >> ${env.KAAS_INFO_FILE}
+        - helm version >> ${env.KAAS_INFO_FILE}
+
+  delete-namespace:
+    - rule: find-docker-config-basepath
+    - task: delete-release
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: helm delete ${env.HELM_CHART_NAME} --namespace ${env.K8S_NAMESPACE} || true
+    - task: delete-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl delete namespace ${env.K8S_NAMESPACE}
+
+  # Publish docker images and helm charts to drop repository
+  # Call publish only when merged to master
+  publish:
+    - task: package-helm-public
+      docker-image: adp-release-auto
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--env ENABLE_HELM_V3=true"
+      cmd: helm-package
+        --folder charts/${env.HELM_CHART_NAME}
+        --workdir .bob --output build
+        --version ${env.VERSION_TAG}
+        --replace VERSION=${env.VERSION_TAG}
+        --replace eric-product-info.yaml:VERSION=${env.VERSION_TAG}
+        --replace eric-product-info.yaml:REPO_PATH=${var.image-repopath-drop}
+    - task: publish-helm
+      docker-image: adp-release-auto
+      cmd: upload_file.sh
+        --filename=build/${env.HELM_CHART_NAME}-${env.VERSION_TAG}.tgz
+        --repository=${helm-chart-drop-repo}/${env.HELM_CHART_NAME}
+        --api-token=${env.SELI_ARTIFACTORY_REPO_PASS}
+        --overwrite=true
+
+  publish-image:
+    - task: image-pull-internal
+      cmd: docker pull ${env.BASE_IMAGE_REG_PATH}/${env.ACM_IMAGE}:${env.VERSION_TAG}
+    - task: image-tag-public
+      cmd: docker tag ${env.BASE_IMAGE_REG_PATH}/${env.ACM_IMAGE}:${env.VERSION_TAG} ${env.BASE_IMAGE_REG_PATH}/${env.ACM_IMAGE}:${env.VERSION_TAG}
+    - task: image-push-public
+      cmd: docker push ${env.BASE_IMAGE_REG_PATH}/${env.ACM_IMAGE}:${env.VERSION_TAG}
+
+  # Publish OpenAPI specs to Generic drop repository
+  publish-oas:
+    - task: upload-open-api-specs
+      docker-image: adp-helm-kubectl
+      docker-flags:
+        - "--env OPEN_API_SPEC_DIRECTORY=${env.OPEN_API_SPEC_DIRECTORY}"
+      cmd:
+        bash -c 'for oas in ${env.OPEN_API_SPEC_DIRECTORY}/*openapi.yaml; do
+          if [ -f $oas ]; then
+            curl -X PUT -T $oas ${generic-drop-repo}-local/${env.HELM_CHART_NAME}/${var.version}/$(basename -- $oas) -u ${env.SELI_ARTIFACTORY_REPO_USER}:${env.SELI_ARTIFACTORY_REPO_PASS};
+          fi
+        done'
+
+  publish-jars:
+    - task: mvn-upload
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${env.DOCKER_VOLUME_MAPPING_PASSWD}
+        - "--volume /etc/ssh:/etc/ssh"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - ${env.DOCKER_NETWORK}
+        - "--env SELI_ARTIFACTORY_REPO_USER=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env SELI_ARTIFACTORY_REPO_PASS=\"${env.SELI_ARTIFACTORY_REPO_PASS}\""
+        - "--env MAVEN_OPTS"
+      cmd:
+        - git checkout master
+        - mvn ${env.MAVEN_CLI_OPTS} -Darguments=" -Dgoals=clean deploy -Dmaven.javadoc.skip=true" release:prepare release:perform
+
+  helm-chart-check-report-warnings:
+    - task: helm-chart-check-report-warnings
+      cmd:
+        - if grep -q ">WARNING<" .bob/design-rule-check-report.xml; then
+            echo true > .bob/var.helm-chart-check-report-warnings;
+          else
+            echo false > .bob/var.helm-chart-check-report-warnings;
+          fi
+
+  collect-k8s-logs:
+    - task: collect-logs-using-script
+      docker-image: adp-helm-kubectl
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--env ENABLE_HELM_V3"
+        - "--env HOME=${env.HOME}"
+        - "--env K8S_NAMESPACE=${env.K8S_NAMESPACE}"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env HELM_VERSION"
+        - "--env SERO_ARTIFACTORY_REPO_USER=${env.SERO_ARTIFACTORY_REPO_USER}"
+        - "--env SERO_ARTIFACTORY_REPO_PASS=\"${env.SERO_ARTIFACTORY_REPO_PASS}\""
+        - "--env COLLECT_LOGS_SCRIPT_LOCATION"
+        - "--env COLLECT_LOGS_SCRIPT_FILE_NAME"
+        - "--env COLLECT_LOGS_SINCE_RELATIVE_TIME"
+        - "--env COLLECT_LOGS_DIR"
+        - "--env HOME=${env.HOME}"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}"
+      cmd:
+        - mkdir -p ${env.COLLECT_LOGS_DIR}
+        - kubectl config view > ${env.COLLECT_LOGS_DIR}/kubectl.config
+        - kubectl get ns > ${env.COLLECT_LOGS_DIR}/kubectl-get-ns.log
+        - helm ls -Aa > ${env.COLLECT_LOGS_DIR}/helm-ls-Aa.log
+        - printenv | grep -v CREDENTIALS | grep -v ARTIFACTORY > ${env.COLLECT_LOGS_DIR}/printenv.log
+        - curl -u ${env.SERO_ARTIFACTORY_REPO_USER}:${env.SERO_ARTIFACTORY_REPO_PASS} ${env.COLLECT_LOGS_SCRIPT_LOCATION}/${env.COLLECT_LOGS_SCRIPT_FILE_NAME} > ${env.COLLECT_LOGS_DIR}/${env.COLLECT_LOGS_SCRIPT_FILE_NAME}
+        - chmod 777 ${env.COLLECT_LOGS_DIR}/${env.COLLECT_LOGS_SCRIPT_FILE_NAME}
+        - sh -c "cd ${env.COLLECT_LOGS_DIR} && ./${env.COLLECT_LOGS_SCRIPT_FILE_NAME} ${env.K8S_NAMESPACE} ${env.COLLECT_LOGS_SINCE_RELATIVE_TIME}"
+
+  # fossa init stage
+  fossa-init:
+    - task: commit
+      docker-image: adp-release-auto
+      cmd: git rev-parse --short HEAD > .bob/var.commithash
+    - task: fossa-init
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - ${docker-params}
+      cmd:
+        fossa init --endpoint ${fossa-server-endpoint} --project ${fossa-project-name}
+
+  # fossa analyze stage
+  fossa-analyze:
+    - task: generate-foss-revision common
+      cmd: "FOSSA_REVISION=$(cd policy-common && git rev-parse --short HEAD) && echo $FOSSA_REVISION > .bob/var.fossa-revision-common"
+    - task: fossa-analyze common
+      docker-image: adp-maven-java17builder-orig
+      docker-flags: &fossa-analyze-docker-flags
+        - ${docker-params}
+        - "--env FOSSA_API_KEY=${env.FOSSA_API_KEY}"
+        - "--env MAVEN_OPTS=-Duser.home=${env.HOME}"
+        - "--env HOME=${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--env SELI_ARTIFACTORY_REPO_USER"
+        - "--env SELI_ARTIFACTORY_REPO_PASS"
+        - "--env ERICSSON_ARM_USERNAME=${env.SELI_ARTIFACTORY_REPO_USER}"
+        - "--env ERICSSON_ARM_PASSWORD=${env.SELI_ARTIFACTORY_REPO_PASS}"
+      cmd:
+        fossa analyze --team ${fossa-team-name} --endpoint ${fossa-server-endpoint} --project ${fossa-project-name-common} --revision ${var.fossa-revision-common} --debug ./policy-common
+    - task: generate-foss-revision models
+      cmd: "FOSSA_REVISION=$(cd policy-models && git rev-parse --short HEAD) && echo $FOSSA_REVISION > .bob/var.fossa-revision-models"
+    - task: fossa-analyze models
+      docker-image: adp-maven-java17builder-orig
+      docker-flags: *fossa-analyze-docker-flags
+      cmd:
+        fossa analyze --team ${fossa-team-name} --endpoint ${fossa-server-endpoint} --project ${fossa-project-name-models} --revision ${var.fossa-revision-models} --debug ./policy-models
+    - task: generate-foss-revision runtime-acm
+      cmd: "FOSSA_REVISION=$(cd clamp && git rev-parse --short HEAD) && echo $FOSSA_REVISION > .bob/var.fossa-revision-runtime-acm"
+    - task: fossa-analyze runtime-acm
+      docker-image: adp-maven-java17builder-orig
+      docker-flags: *fossa-analyze-docker-flags
+      cmd:
+        fossa analyze --team ${fossa-team-name} --endpoint ${fossa-server-endpoint} --project ${fossa-project-name-runtime-acm} --revision ${var.fossa-revision-runtime-acm} --exclude-path testsuites --debug ./clamp
+
+  # fossa scan status stage
+  fossa-scan-status-check:
+    - task: fossa-scan-status-check common
+      docker-image: adp-release-auto
+      docker-flags: &fossa-scan-status-check-docker-flags
+        - "--env FOSSA_API_KEY=${env.FOSSA_API_KEY}"
+      cmd: fossa_scan_status_check -s ${fossa-server-endpoint} -f custom -p ${fossa-project-name-common} -r ${var.fossa-revision-common} -t ${env.FOSSA_API_KEY} -dl 15
+    - task: fossa-scan-status-check models
+      docker-image: adp-release-auto
+      docker-flags: *fossa-scan-status-check-docker-flags
+      cmd: fossa_scan_status_check -s ${fossa-server-endpoint} -f custom -p ${fossa-project-name-models} -r ${var.fossa-revision-models} -t ${env.FOSSA_API_KEY} -dl 15
+    - task: fossa-scan-status-check runtime-acm
+      docker-image: adp-release-auto
+      docker-flags: *fossa-scan-status-check-docker-flags
+      cmd: fossa_scan_status_check -s ${fossa-server-endpoint} -f custom -p ${fossa-project-name-runtime-acm} -r ${var.fossa-revision-runtime-acm} -t ${env.FOSSA_API_KEY} -dl 15
+
+  # New attribution format
+  fetch-fossa-report-attribution:
+    - task: fetch-fossa-report-attribution common
+      docker-image: adp-maven-java17builder-orig
+      docker-flags: &fetch-fossa-report-attribution-docker-flags
+         - "--env FOSSA_API_KEY=${env.FOSSA_API_KEY}"
+      cmd: fossa report attribution
+            --endpoint ${fossa-server-endpoint}
+            --project ${fossa-project-name-common}
+            --revision ${var.fossa-revision-common} --json > ${fossa-report-name-common}
+    - task: fetch-fossa-report-attribution models
+      docker-image: adp-maven-java17builder-orig
+      docker-flags: *fetch-fossa-report-attribution-docker-flags
+      cmd: fossa report attribution
+            --endpoint ${fossa-server-endpoint}
+            --project ${fossa-project-name-models}
+            --revision ${var.fossa-revision-models} --json > ${fossa-report-name-models}
+    - task: fetch-fossa-report-attribution runtime-acm
+      docker-image: adp-maven-java17builder-orig
+      docker-flags: *fetch-fossa-report-attribution-docker-flags
+      cmd: fossa report attribution
+            --endpoint ${fossa-server-endpoint}
+            --project ${fossa-project-name-runtime-acm}
+            --revision ${var.fossa-revision-runtime-acm} --json > ${fossa-report-name-runtime-acm}
+
+  # Old dependencies format (DEPRECIATED Old way of generating dependencies.yaml)
+  # See https://eteamspace.internal.ericsson.com/display/STETFS/Setting+up+and+running+a+FOSSA+scan
+  fetch-fossa-report-dependencies:
+    - task: fetch-fossa-report-dependencies
+      docker-image: adp-maven-java17builder
+      docker-flags:
+        - "--env FOSSA_API_KEY=${env.FOSSA_API_KEY}"
+      cmd: fossa report dependencies
+            --config ${fossa-config-location}
+            --endpoint ${fossa-server-endpoint}
+            --project-url ${fossa-project-name}
+            --revision ${var.commithash} --json > dependencies_${fossa-report-name}
+
+  # This script will check in Bazaar for 3PP that are registered and listed in ${dependency-file-name}
+  dependency-update:
+    - task: dependency-update common
+      docker-image: adp-release-auto
+      cmd: dependencies update
+            --fossa-report ${fossa-report-name-common}
+            --dependencies ${dependency-file-name-common}
+            --transform-components
+    - task: dependency-update models
+      docker-image: adp-release-auto
+      cmd: dependencies update
+            --fossa-report ${fossa-report-name-models}
+            --dependencies ${dependency-file-name-models}
+            --transform-components
+    - task: dependency-update runtime-acm
+      docker-image: adp-release-auto
+      cmd: dependencies update
+            --fossa-report ${fossa-report-name-runtime-acm}
+            --dependencies ${dependency-file-name-runtime-acm}
+            --transform-components
+
+  dependency-merge:
+    - task: dependency-merge
+      docker-image: adp-release-auto
+      cmd: dependencies merge
+            --debug
+            -d ${dependency-file-name-common}
+            -d ${dependency-file-name-models}
+            -d ${dependency-file-name-runtime-acm}
+            -o ${dependency-file-name}
+
+  scan-scas:
+    - task: scan-scas
+      docker-image: adp-release-auto
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume ${env.PWD}/${env.OVERRIDE_SCAS_NAME_MAP}:${env.ADP_BOB_SCAS_NAME_MAP}"
+      cmd: dependencies update
+        --dependencies ${dependency-file-name}
+        --scan-scas
+        --scas-refresh-token ${env.SCAS_TOKEN}
+        --link-dependencies
+        --sort
+        -nssthr 100
+        -vssthr 100
+
+  dependency-enrich:
+    - task: dependency-enrich
+      docker-image: adp-release-auto
+      cmd: dependencies enrich
+            --debug
+            -d ${dependency-file-name}
+            -sd ${env.RELEASE_DEPENDENCIES_FILE}
+            -o ${dependency-enriched-file-name}
+    - task: scan-scas-with-enriched-deps
+      docker-image: adp-release-auto
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume ${env.PWD}/${env.OVERRIDE_SCAS_NAME_MAP}:${env.ADP_BOB_SCAS_NAME_MAP}"
+      cmd: dependencies update
+        --dependencies ${dependency-enriched-file-name}
+        --scan-scas
+        --scas-refresh-token ${env.SCAS_TOKEN}
+        --link-dependencies
+        --sort
+        -nssthr 100
+        -vssthr 100
+
+  # // WARNING!!! This will make generic FOSS requests to SCAS. Ensure that you have prepared the PREP_DEPENDENCIES_FILE before running. For more info see TEAM KRAKEN RELEASE GUIDE
+  update-prep-deps-file:
+    - task: register-dependencies-in-scas
+      docker-image: adp-release-auto
+      cmd: dependencies register
+            -d ${env.PREP_DEPENDENCIES_FILE}
+            --scas
+            --scas-refresh-token ${env.SCAS_TOKEN}
+            --productid ${env.DEP_REG_PROD_ID}
+            --versionid ${env.DEP_REG_VER_ID}
+    - task: scan-scas
+      docker-image: adp-release-auto
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--env MAVEN_OPTS=${env.MAVEN_OPTS}"
+        - "--env HOME=${env.HOME}"
+        - "--volume /proj/mvn:/proj/mvn"
+        - "--volume ${env.HOME}:${env.HOME}"
+        - "--volume ${env.PWD}/${env.OVERRIDE_SCAS_NAME_MAP}:${env.ADP_BOB_SCAS_NAME_MAP}"
+      cmd: dependencies update
+        --dependencies ${env.PREP_DEPENDENCIES_FILE}
+        --scan-scas
+        --scas-refresh-token ${env.SCAS_TOKEN}
+        --link-dependencies
+        --sort
+        -nssthr 100
+        -vssthr 100
+        || true
+    - task: set-linking-to-classpath-for-all-deps
+      cmd: "sed -i \"s#linking: MANDATORY_FOR_MIMER#linking: Classpath#g\" ${env.PREP_DEPENDENCIES_FILE}"
+    - task: update-stako-decision-reason
+      cmd: python3 foss-scripts/update-stako-decision-reason.py ${env.PREP_DEPENDENCIES_FILE}
+    - task: update-foss-usage-fields
+      cmd: python3 foss-scripts/update-foss-usage-fields.py ${env.PREP_DEPENDENCIES_FILE} ${env.RELEASE_DEPENDENCIES_FILE} ${env.PREP_DEPENDENCIES_FILE}
+
+  # Validation for the dependencies file (e.g. check for SELECT_FROM_LICENSE, MANDATORY_FOR_BAZAAR)
+  dependency-validate:
+    - task: dependency-validate
+      docker-image: adp-release-auto
+      cmd: dependencies validate
+           --dependencies ${env.PREP_DEPENDENCIES_FILE}
+           --allow-esw4
+
+  # fossa related artifact (fossa.report.json and dependancy.yaml)
+  fossa-scan-artifact-upload:
+    - task: fossa-scan-artifact-upload
+      docker-image: adp-release-auto
+      cmd:
+        bash -c 'tar czf ${fossa-scan-artifact-file-name} ${dependency-file-name} ${fossa-report-name};
+        curl -u '${env.SELI_ARTIFACTORY_REPO_USER}:${env.SELI_ARTIFACTORY_REPO_PASS}' -X PUT -T ${fossa-scan-artifact-file-name} ${fossa-scan-report-artifact-path}/${fossa-scan-artifact-file-name}'
+
+  license-agreement-generate:
+    - task: generate-license-agreement-fragment
+      docker-image: adp-release-auto
+      cmd: license-agreement generate
+           --fossa-report ${env.FOSSA_REPORT_COMMON}
+           --fossa-report ${env.FOSSA_REPORT_MODELS}
+           --fossa-report ${env.FOSSA_REPORT_RUNTIME_ACM}
+           --dependencies ${env.RELEASE_DEPENDENCIES_FILE}
+           --license-agreement ${env.MANUAL_LICENSE_AGREEMENT}
+           --output ${license-agreement-fragment}
+           --fail-at-end
+    - task: copy-rpm-license-generation-script
+      docker-image: adp-release-auto
+      cmd: "cat /usr/local/bin/rpm-la.sh > build/rpm-la.sh && chmod 755 build/rpm-la.sh"
+    - task: generate-rpm-license-agreement-acm-runtime
+      docker-image: acm-runtime-image
+      docker-flags:
+        - "--entrypoint /bin/bash"
+        - "--volume ${env.PWD}:${env.PWD}:rw"
+        - "--workdir ${env.PWD}"
+      cmd: build/rpm-la.sh -o ${license-agreement-rpm-acm-runtime}
+    - task: generate-rpm-license-agreement-acm-readiness
+      docker-image: acm-runtime-readiness-image
+      docker-flags:
+        - "--entrypoint /bin/bash"
+        - "--volume ${env.PWD}:${env.PWD}:rw"
+        - "--workdir ${env.PWD}"
+      cmd: build/rpm-la.sh -o ${license-agreement-rpm-acm-readiness}
+    - task: generate-rpm-license-agreement-acm-envsubst
+      docker-image: acm-runtime-envsubst-image
+      docker-flags:
+        - "--entrypoint /bin/bash"
+        - "--volume ${env.PWD}:${env.PWD}:rw"
+        - "--workdir ${env.PWD}"
+      cmd: build/rpm-la.sh -o ${license-agreement-rpm-acm-envsubst}
+    - task: generate-rpm-license-agreement-acm-crunchypostgres
+      docker-image: acm-runtime-crunchypostgres-image
+      docker-flags:
+        - "--entrypoint /bin/bash"
+        - "--volume ${env.PWD}:${env.PWD}:rw"
+        - "--workdir ${env.PWD}"
+      cmd: build/rpm-la.sh -o ${license-agreement-rpm-crunchpostgres}
+
+  license-agreement-validate-fragments:
+    - task: validate-license-agreement-fragment
+      docker-image: adp-release-auto
+      cmd: license-agreement validate
+        --license-agreement ${license-agreement-fragment}
+    - task: validate-license-agreement-rpm-acm-runtime
+      docker-image: adp-release-auto
+      cmd: license-agreement validate
+        --license-agreement ${license-agreement-rpm-acm-runtime}
+    - task: validate-license-agreement-rpm-acm-readiness
+      docker-image: adp-release-auto
+      cmd: license-agreement validate
+        --license-agreement ${license-agreement-rpm-acm-readiness}
+    - task: validate-license-agreement-rpm-acm-envsubst
+      docker-image: adp-release-auto
+      cmd: license-agreement validate
+        --license-agreement ${license-agreement-rpm-acm-envsubst}
+    - task: validate-license-agreement-rpm-crunchypostgres
+      docker-image: adp-release-auto
+      cmd: license-agreement validate
+        --license-agreement ${license-agreement-rpm-crunchpostgres}
+
+  license-agreement-merge-fragments:
+    - task: merge-license-agreement-fragments
+      docker-image: adp-release-auto
+      cmd: license-agreement merge
+        -l ${license-agreement-fragment}
+        -l ${license-agreement-rpm-acm-runtime}
+        -l ${license-agreement-rpm-acm-readiness}
+        -l ${license-agreement-rpm-acm-envsubst}
+        -l ${license-agreement-rpm-crunchpostgres}
+        -o ${release-license-agreement}
+
+  release-license-agreement-validate:
+    - task: validate-release-license-agreement
+      docker-image: adp-release-auto
+      cmd: license-agreement validate
+        --license-agreement ${release-license-agreement}
+
+  # According to documentation, this is an "Application" step, which I don't think we should need,
+  #   but including in case asked for markdown version
+  release-license-agreement-generate-markdown:
+    - task: generate-license-agreement-markdown-document
+      docker-image: adp-release-auto
+      cmd: license-agreement doc-generate
+        --license-agreement ${release-license-agreement}
+        --output ${release-license-markdown-document}
+        --fail-at-end
+
+  validate-sdk:
+    - task: check-sdk
+      docker-image: sdk-validator
+      cmd: validate-sdk --proj-sdk-dir ${env.PWD}/sdk-docs
+
+  hadolint-scan:
+    - task: hadolint-scan-test
+      docker-image: hadolint-scan
+      docker-flags:
+        - "--workdir /app/"
+        - "-v ${env.PWD}/config/hadolint_config.yaml:/config/hadolint_config.yaml"
+        - "-v ${env.PWD}/${env.DOCKERFILE_PATH}:/Dockerfile"
+        - "-v ${env.PWD}/build/va-reports/hadolint-scan:/tmp/reports/"
+      cmd: "-p ${env.HELM_CHART_NAME} -f /Dockerfile -c /config/hadolint_config.yaml; echo $? > .bob/var.resultcode_hadolint_check"
+
+  evaluate-design-rule-check-resultcodes:
+    - task: hadolint-result-check
+      cmd: sh -c '
+         if [ ${var.resultcode_hadolint_check} -ne 0 ]; then
+            echo "Failure in hadolint checker";
+            exit ${var.resultcode_hadolint_check};
+         fi ;'
+
+ 
+  # Run kubeaudit
+  kube-audit:
+    - task: helm-template
+      docker-image: adp-release-auto
+      cmd: "helm template charts/${env.HELM_CHART_NAME} --output-dir=.bob/helm_src"
+    - task: kube-audit-test
+      docker-image: va-scan-kubeaudit
+      docker-flags:
+        - "--workdir /opt/va-scan-kubeaudit/"
+        - "-v ${env.PWD}/config:/opt/va-scan-kubeaudit/conf"
+        - "-v ${env.PWD}/build/va-reports/kube-audit-report/:/tmp/reports"
+        - "-v ${env.PWD}/.bob/helm_src:/tmp/src"
+      cmd: " "
+
+  # Run kubesec scanning
+  kubesec-scan:
+    - task: helm-template
+      docker-image: va-scan-kubesec
+      cmd: "helm template charts/${env.HELM_CHART_NAME} --output-dir=.bob/helm_kubesec"
+    - task: remove-files-not-for-scanning
+      cmd:
+        - rm -rf .bob/helm_kubesec/${env.HELM_CHART_NAME}/templates/tests
+        - rm -rf .bob/helm_kubesec/${env.HELM_CHART_NAME}/templates/hpa.yaml
+        - rm -rf .bob/helm_kubesec/${env.HELM_CHART_NAME}/templates/rolebinding.yaml
+    - task: kubesec-scan-test
+      docker-image: va-scan-kubesec
+      docker-flags:
+        - "--workdir /opt/va-scan-kubesec/"
+        - "-v ${env.PWD}/config:/opt/va-scan-kubesec/conf"
+        - "-v ${env.PWD}/build/va-reports/kubesec-reports/:/tmp/reports"
+        - "-v ${env.PWD}/.bob/helm_kubesec/:/tmp/src"
+      cmd: " "
+
+  cleanup-anchore-trivy-images:
+    - task: clean-images
+      cmd:
+      - "docker image rm -f ${anchore-grype-image}"
+      - "docker image rm -f ${trivy-image}"
+      - "docker image rm -f ${image-to-scan}"
+
+  # Fetch vulnerabililty report VA 2.0
+  generate-VA-report-V2:
+    - task: no-upload
+      docker-image: adp-release-auto
+      docker-flags:
+        - --env VHUB_API_TOKEN
+      cmd: bash -c 'va-report
+           --set version=${env.VERSION_TAG}
+           --config ${env.PWD}/config/va-report.config
+           --output ${env.PWD}/build/va-reports/VA-reports/${env.ACM_IMAGE}-${env.VERSION_TAG}-Vulnerability_Report_2.0.md
+           --md
+           --debug
+           --set helmChartName=.bob/${env.HELM_CHART_NAME}-internal/${env.HELM_CHART_NAME}-${env.VERSION_TAG}.tgz
+           --hadolint-reports ${env.PWD}/build/va-reports/hadolint-scan
+           --kubeaudit-reports ${env.PWD}/build/va-reports/kube-audit-report/${env.HELM_CHART_NAME}/templates/deployment*
+           --kubesec-reports ${env.PWD}/build/va-reports/kubesec-reports'; exit 0;
+    - task: upload
+      docker-image: adp-release-auto
+      docker-flags:
+        - --env VHUB_API_TOKEN
+      cmd: bash -c 'va-report
+           --set version=${env.VERSION_TAG}
+           --config ${env.PWD}/config/va-report.config
+           --output ${env.PWD}/build/va-reports/VA-reports/${env.ACM_IMAGE}-${env.VERSION_TAG}-Vulnerability_Report_2.0.md
+           --md
+           --debug
+           --set helmChartName=.bob/${env.HELM_CHART_NAME}-internal/${env.HELM_CHART_NAME}-${env.VERSION_TAG}.tgz
+           --hadolint-reports ${env.PWD}/build/va-reports/hadolint-scan
+           --kubeaudit-reports ${env.PWD}/build/va-reports/kube-audit-report/${env.HELM_CHART_NAME}/templates/deployment*
+           --kubesec-reports ${env.PWD}/build/va-reports/kubesec-reports
+           --upload-scan-results'; exit 0;
+    - task: va-report-to-html
+      docker-image: adp-release-auto
+      cmd: bash -c 'if [ -f "${env.PWD}/build/va-reports/VA-reports/${env.ACM_IMAGE}-${env.VERSION_TAG}-Vulnerability_Report_2.0.md" ];
+           then
+             doc-handler generate
+             --config config/va_html_config.yaml
+             --output ${env.PWD}/build/va-reports/VA-reports/${env.ACM_IMAGE}-${env.VERSION_TAG}-Vulnerability_Report_2.0
+             --format html;
+           else
+             echo "The Vulnerability_Report_2.0.md file does not exist in the workspace to generate the HTML report.";
+           fi'
+
+  mimer-search-foss:
+  # Search and verify all FOSS from --dependencies can be found in Mimer. 
+  # Writes out new_components.json for new comonents needing to be imported
+  # and new_versions.json for new versions of existing components
+    - task: search-foss
+      docker-image: adp-release-auto
+      docker-flags:
+        - "--volume ${env.MUNIN_TOKEN}:${env.MUNIN_TOKEN}"
+      cmd: munin search-foss
+        -t "$(cat ${env.MUNIN_TOKEN})"
+        --dependencies ${env.RELEASE_DEPENDENCIES_FILE}
+        -o build/search-foss
+
+  # Create/update product version from product structure and FOSS dependencies
+  munin-update-version:
+    - task: validate-files
+      docker-image: adp-release-auto
+      cmd: munin validate
+        -ps ${release-product-structure-file}
+    - task: create-products
+      docker-image: adp-release-auto
+      docker-flags:
+        - "--volume ${env.MUNIN_TOKEN}:${env.MUNIN_TOKEN}"
+      cmd: munin create-versions
+        -t "$(cat ${env.MUNIN_TOKEN})"
+        -c ${release-product-structure-file}
+        -v ${var.released-version-without-build-number}
+        --debug ${env.DEBUG}
+
+  # Set artifact URLs in PLMS via GitCA
+  munin-connect-ca-artifact:
+    - task: archive-commit
+      docker-image: adp-release-auto
+      docker-flags:
+        - --env GITCA_USERNAME
+        - --env GITCA_PASSWORD
+      cmd: gitca register-plm
+        --commithash ${env.ACM_RELEASE_SOURCE_COMMITHASH}
+        --product-number ${source-product-number}
+        --version ${var.released-version-without-build-number}
+        --name ${gitca-repo-name}
+
+  # This rule fetches the release candidate (e.g. 1.0.0-3) helm chart from helm-chart-drop-repo
+  fetch-drop-helm-chart:
+    - task: create-chart-folder
+      cmd: mkdir -p ${helm-chart-released-folder}
+    - task: fetch-chart
+      docker-image: cihelm
+      cmd:
+        --username ${env.SELI_ARTIFACTORY_REPO_USER}
+        --password ${env.SELI_ARTIFACTORY_REPO_PASS}
+        --retry-timeout '${env.CIHELM_RETRY_TIMEOUT}'
+        --retry-sleep '${env.CIHELM_RETRY_SLEEP}'
+        --http-retry '${env.CIHELM_HTTP_RETRY}'
+        fetch
+          --destination '${helm-chart-released-folder}'
+          '${common.helm-chart-name}'
+          '${env.RELEASE_CANDIDATE}'
+          '${helm-chart-drop-repo}'
+
+  # Set artifact URLs in PLMS via ACA (Artifactory Certified Archive)
+  upload-and-register-artifacts-in-aca:
+    - task: upload-archive
+      docker-image: adp-release-auto
+      docker-in-docker: socket
+      cmd: aca upload-archive
+           --debug
+           --chart-path ${helm-chart-released-folder}/${common.helm-chart-name}-${env.RELEASE_CANDIDATE}.tgz
+           --replace ${image-repopath}=${aca-container-name}
+           --helm-container ${aca-container-name}
+           --username ${env.ACA_USERNAME}
+           --password '${env.ACA_PASSWORD}'
+
+  # Release products in PLMS
+  munin-release-version:
+    - task: release-versions
+      docker-image: adp-release-auto
+      cmd:
+        - munin release-versions
+          -t "$(cat ${env.MUNIN_TOKEN})"
+          -c ${release-product-structure-file}
+          -v ${var.released-version-without-build-number}
+          --wait-prim-target 1800
+
+  # Download release artifact from ACA (Artifactory Certified Archive)
+  download-artifact-from-aca:
+    - task: create-release-tag
+      docker-image: adp-release-auto
+      cmd: 
+        - echo ${env.RELEASE_CANDIDATE} | sed 's#-#+#g' > .bob/var.release-tag
+    - task: download-archive
+      docker-image: adp-release-auto
+      docker-in-docker: socket
+      cmd: aca download
+           --debug
+           --username ${env.ACA_USERNAME}
+           --password '${env.ACA_PASSWORD}'
+           --artifact-id 'helm://${aca-container-name}/${common.helm-chart-name}/${common.helm-chart-name}-${var.release-tag}.tgz'
+           --destination 'aca-release-downloads'
+
+ # Create diff between foss reports
+  create-foss-report-diff:
+    - task: create-diff
+      docker-image: adp-release-auto
+      cmd: 
+        - grep -i "ID:" ${env.RELEASE_DEPENDENCIES_FILE} | tr -d '\- ID:' > diff-reports/${release-dependencies-file-list}
+        - grep -i "ID:" ${dependency-file-name} | tr -d '\- ID:' > diff-reports/${generated-dependencies-file-list}
+        - sort diff-reports/${release-dependencies-file-list} -o diff-reports/${release-dependencies-file-list}
+        - sort diff-reports/${generated-dependencies-file-list} -o diff-reports/${generated-dependencies-file-list}
+        - diff -u --suppress-common-lines diff-reports/${release-dependencies-file-list} diff-reports/${generated-dependencies-file-list}  > diff-reports/${diff-report-unified} && echo "No differences found" || echo "Differences found"
+        - diff -y -W 250 --suppress-common-lines diff-reports/${release-dependencies-file-list} diff-reports/${generated-dependencies-file-list} > diff-reports/${diff-report-side-by-side} && echo "No differences found" || echo "Differences found"
+
+  # Unpacking the helmchart to tag it with + version
+  unpack-helmchart:
+    - task: unpack-chart
+      docker-image: adp-release-auto
+      cmd: tar -C ${helm-chart-released-folder} -xzf ${helm-chart-released-folder}/${env.HELM_CHART_NAME}-${env.RELEASE_CANDIDATE}.tgz
+
+# Pushing Final release version(+ version)Helmchart to drop repo
+  publish-released-helmchart-to-drop-repo:
+    - task: package-helm-release-version
+      docker-image: adp-release-auto
+      docker-flags:
+        - ${env.DOCKER_NETWORK}
+        - "--env ENABLE_HELM_V3=true"
+      cmd: helm-package
+        --folder ${helm-chart-released-folder}/${env.HELM_CHART_NAME}
+        --workdir .bob --output ${helm-chart-released-folder}
+        --version ${var.version}
+    - task: publish-released-helm
+      docker-image: adp-release-auto
+      cmd: upload_file.sh
+        --filename=${helm-chart-released-folder}/${env.HELM_CHART_NAME}-${var.version}.tgz
+        --repository=${helm-chart-drop-repo}/${env.HELM_CHART_NAME}
+        --api-token=${env.SELI_ARTIFACTORY_REPO_PASS}
+        --overwrite=true

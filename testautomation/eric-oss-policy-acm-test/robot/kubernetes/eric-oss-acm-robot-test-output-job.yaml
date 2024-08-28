@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "acm-robot-test-output-job"
+spec:
+  template:
+    metadata:
+      labels:
+        type: acm-robot-test-output-job
+    spec:
+      containers:
+      - name: acm-robot-test-output-job
+        image: registry.nordix.org/onaptest/busybox:1.34.1
+        command: ['sh', '-c', 'cat /tmp/output.xml']
+        volumeMounts:
+        - mountPath: /tmp
+          name: robotworkspace
+        imagePullPolicy: IfNotPresent
+      volumes:
+      - persistentVolumeClaim:
+          claimName: "acm-robot-test-pvc"
+          readOnly: false
+        name: robotworkspace
+      restartPolicy: OnFailure

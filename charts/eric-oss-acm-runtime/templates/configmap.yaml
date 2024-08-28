@@ -1,0 +1,26 @@
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eric-oss-acm-runtime.name" . }}-configmap
+  labels:
+  {{- include "eric-oss-acm-runtime.labels" . | nindent 4 }}
+  annotations:
+  {{- include "eric-oss-acm-runtime.annotations" . | nindent 4 }}
+{{- with .Files.Glob "resources/config/*store" }}
+binaryData:
+{{- range $path, $bytes := . }}
+  {{ base $path }}: {{ $.Files.Get $path | b64enc | quote }}
+{{- end }}
+{{- end }}
+data:
+{{ tpl (.Files.Glob "resources/config/*.{json,xml,yaml,sh}").AsConfig . | indent 2 }}

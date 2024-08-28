@@ -1,0 +1,107 @@
+# Default values for charts.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  pullPolicy: Always
+
+imageCredentials:
+  csitTestImage:
+    productName: "Policy ACM CSIT Test Image"
+    registry:
+      url: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-est-policy"
+    name: "policy-acm-csit-image"
+    tag: "0.21.4-precode"
+  readinessImage:
+    productName: "Policy ACM Runtime Readiness"
+    registry:
+      url: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-est-policy"
+    name: "eric-oss-acm-runtime-readiness"
+    tag: "3.0.1"
+  busyboxImage:
+    productName: "Busybox image"
+    registry:
+      url: "registry.nordix.org"
+    repoPath: "onaptest"
+    name: "busybox"
+    tag: "1.34.1"
+  pullSecret: armdocker
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+
+# Container environment variables for test deployment
+# containers:
+#   env:
+#   - name: POLICY_RUNTIME_ACM_IP
+#     value: "eric-oss-acm-runtime"
+#   - name: POLICY_RUNTIME_ACM_TEST_CASE
+#     value: "Healthcheck"
+#   - name: POLICY_ADMIN_PASSWORD
+#     value: password
+
+container:
+  env:
+    POLICY_RUNTIME_ACM_IP:
+      value: "eric-oss-acm-runtime"
+    POLICY_RUNTIME_ACM_TEST_CASE:
+      value: "Healthcheck"
+    POLICY_ADMIN_PASSWORD:
+      value: "password"
+
+persistent:
+  claimName: "acm-robot-test-pvc"
+  storageClassOverride: "network-file"

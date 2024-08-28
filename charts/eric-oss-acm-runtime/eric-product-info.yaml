@@ -1,0 +1,48 @@
+# ******************************************************************************
+#  Copyright (C) 2022 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+
+productName: "ACM Runtime"
+productNumber: "CXD 101 554"
+images:
+  runtimeImage:
+    productName: "ACM Runtime Image"
+    productNumber: "CXU 101 1911"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-est-policy"
+    name: "eric-oss-acm-runtime"
+    tag: VERSION
+  readinessImage:
+    productName: "ACM Runtime Readiness"
+    productNumber: "CXU 101 1935"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-est-policy"
+    name: "eric-oss-acm-runtime-readiness"
+    tag: VERSION
+  envsubstImage:
+    productName: "ACM Runtime Envsubst"
+    productNumber: "CXU 101 1936"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-est-policy"
+    name: "eric-oss-acm-runtime-envsubst"
+    tag: VERSION
+  postgresImage:
+    productName: "ACM Runtime Pg Client"
+    productNumber: "CXU 101 1937"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-est-policy"
+    name: "eric-oss-acm-runtime-crunchypostgres"
+    tag: VERSION
+  migratorImage:
+    productName: "ACM Runtime DB Migrator"
+    productNumber: "CXU 101 2700"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-est-policy"
+    name: "eric-oss-acm-runtime-db-migrator"
+    tag: VERSION

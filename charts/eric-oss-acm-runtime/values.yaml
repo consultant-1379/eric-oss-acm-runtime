@@ -1,0 +1,348 @@
+# ******************************************************************************
+#  Copyright (C) 2022-2024 Ericsson Software Technology
+#
+# The copyright to the computer program(s) herein is the property of
+# Ericsson Software Technology. The programs may be used and/or copied
+# only with written permission from Ericsson Software Technology or in
+# accordance with the terms and conditions stipulated in the
+# agreement/contract under which the program(s) have been supplied.
+# ******************************************************************************
+
+#global:
+##  registry:
+##    url: aegis-onap-docker-local.artifactory.est.tech
+#  internalIPFamily:
+#  security:
+#    privilegedPolicyClusterRoleName: allowed-use-privileged-policy
+#    policyBinding:
+#      create: true
+#    tls:
+#      enabled: false
+#  networkPolicy:
+#    enabled: false
+#  serviceMesh:
+#    enabled: true
+#  masterPassword: password
+#  passwordStrength: basic
+#  kafkaBootstrap: kafka-bootstrap:9092
+#  kafkaBootstrapTls: kafka-bootstrap-tls:9093
+#  kafkaClusterName: policy-kafka-cluster
+#  log:
+#    streamingMethod: direct
+#  acmOperationTimeout: 300000
+#  tolerations: []
+
+masterPasswordOverride: password
+passwordStrengthOverride: basic
+
+annotations: {}
+
+labels: {}
+
+initSetup: true
+
+imageCredentials:
+  # pullSecret: eric-oss-acm-runtime-pull-secret
+  runtimeImage:
+    repoPath: # see default in eric-product-info.yaml
+  readinessImage:
+    repoPath:
+  envsubstImage:
+    repoPath:
+  postgresImage:
+    repoPath:
+  migratorImage:
+    repoPath:
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 25%
+    maxSurge: 25%
+#################################################################
+# Secrets metaconfig
+#################################################################
+secrets:
+  - uid: db-root-password
+    name: &dbRootPassSecretName '{{ default "eric-oss-acm-runtime" .Values.nameOverride }}-policy-db-root-password'
+    type: password
+    externalSecret: '{{ tpl (default "" .Values.db.rootExternalSecret) . }}'
+    password: '{{ .Values.db.admin.password }}'
+    passwordPolicy: required
+  - uid: db-secret
+    name: &dbSecretName '{{ default "eric-oss-acm-runtime" .Values.nameOverride }}-policy-db-secret'
+    type: basicAuth
+    externalSecret: '{{ tpl (default "" .Values.db.credsExternalSecret) . }}'
+    login: '{{ .Values.db.user }}'
+    password: '{{ .Values.db.password }}'
+    passwordPolicy: required
+  - uid: runtime-secret
+    name: &policyAppCredsSecret '{{ default "eric-oss-acm-runtime" .Values.nameOverride }}-policy-app-user-creds'
+    type: basicAuth
+    externalSecret: '{{ tpl (default "" .Values.policyAppUserExternalSecret) . }}'
+    login: '{{ .Values.policyAppUserName }}'
+    password: '{{ .Values.policyAppUserPassword }}'
+    passwordPolicy: required
+
+# When TLS is turned on, no authorization headers are required to call ACM endpoints. These values will not be used.
+policyAppUserName: runtimeUser
+policyAppUserPassword: none
+policyAppUserExternalSecret:
+
+#eric-data-document-database-pg:
+#  enabled: true
+#  credentials:
+#    kubernetesSecretName: none
+
+#################################################################
+# Application configuration defaults.
+#################################################################
+# application image
+image: onap/policy-clamp-cl-runtime:6.2.0
+pullPolicy: Always
+
+# flag to enable debugging - application support required
+debugEnabled: false
+
+# application configuration
+kafkaConfig:
+  useStrimziKafka: false
+  localKafkaCluster: false
+  acmKafkaUser: policy-kafka-user
+  kafkaUserPassword: none
+  issuerReference: policy-kafka-cluster
+  saslMechanism: scram-sha-512
+  acRuntimeTopic:
+    name: policy-acruntime-participant
+    partitions: 10
+    retentionMs: 7200000
+    segmentBytes: 1073741824
+    operations: All
+  syncTopic:
+    name: acm-ppnt-sync
+    partitions: 10
+    retentionMs: 7200000
+    segmentBytes: 1073741824
+    operations: All
+  kafka:
+    consumer:
+      groupId: acm-runtime
+      groupOperations: All
+
+db:
+  # When TLS is turned on - no password is required. Just the user.
+  user: policy_user
+  password: none
+  admin:
+    password: none
+  service:
+    name: eric-data-document-database-pg
+    internalPort: 5432
+
+# default number of instances
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  name: policy-clamp-cl-runtime
+  useNodePortExt: true
+  port:
+    http: 6969
+    https: 6969
+    type: ClusterIP
+  internalPort: 6969
+  endpoints:
+    restapi:
+      tls:
+        enforced: required
+
+debug: false
+
+port:
+  http: 6969
+  https: 6969
+  jvmDebug: 9001
+  jvmJmxRemote: 9002
+
+probes:
+  acmruntime:
+    readinessProbe:
+      tcpSocket:
+        port: 6969
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 5
+      timeoutSeconds: 120
+      successThreshold: 1
+    livenessProbe:
+      tcpSocket:
+        port: 6969
+      initialDelaySeconds: 120
+      periodSeconds: 10
+      failureThreshold: 5
+      timeoutSeconds: 120
+  logshipper:
+    livenessProbe:
+      initialDelaySeconds: 1
+      timeoutSeconds: 10
+      periodSeconds: 10
+      failureThreshold: 3
+tolerations: []
+
+nodeSelector: {}
+
+ingress:
+  enabled: false
+
+flavor: small
+
+resources:
+  eric-oss-acm-runtime:
+    requests:
+      memory: "2Gi"
+      cpu: "200m"
+      ephemeral-storage: ""
+    limits:
+      memory: "8Gi"
+      cpu: "2"
+      ephemeral-storage: ""
+  logshipper:
+    requests:
+      memory: "50Mi"
+      cpu: "50m"
+      ephemeral-storage: # Experimental feature. Specifying incorrect ephemeral-storage may cause unexpected pod evictions. See User Guide for more details.
+    limits:
+      memory: "100Mi"
+      cpu: "100m"
+      ephemeral-storage: # Experimental feature. Specifying incorrect ephemeral-storage may cause unexpected pod evictions. See User Guide for more details.
+
+terminationGracePeriodSeconds: 30
+
+podPriority:
+  acm-runtime:
+    priorityClassName: ""
+
+appArmorProfile:
+  type: ""
+
+autoScaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 4
+
+topologySpreadConstraints: []
+
+podDisruptionBudget:
+  minAvailable: 50%
+
+affinity:
+  podAntiAffinity: "soft"
+  topologyKey: "kubernetes.io/hostname"
+
+networkPolicy:
+  enabled: true
+
+
+createDefaultRoles: false
+nameOverride: eric-oss-acm-runtime
+roles:
+
+defaultRoles:
+  - read
+
+log:
+  logshipper:
+    level: info
+  streamingMethod: indirect
+
+logShipper:
+  logLevel: info
+  tls:
+    enabled: true
+  output:
+    logTransformer:
+      host: eric-log-transformer
+      log:
+        streamingMethod: indirect
+  storage:
+    size: 1Gi
+    path: /var/log/onap/policy/policy-clamp-runtime-acm
+  input:
+    files:
+      - enabled: true
+        paths:
+          - "debug.log"
+          - "error.log"
+          - "network.log"
+  config:
+    image: "Log Shipper Sidecar Image"
+    productNumber: "CXU 101 0642"
+    registry: "armdocker.rnd.ericsson.se"
+    repoPath: "proj-adp-log-released"
+    name: "eric-log-shipper-sidecar"
+
+metrics:
+  enabled: true
+  service:
+    port: 6970
+    path: /actuator/prometheus
+
+seccompProfile:
+  type: "RuntimeDefault"
+
+prometheus:
+  path: /actuator/prometheus
+  scrape: true
+  port: 6970
+  role: pod
+  interval: 15s
+
+customNaming:
+  toscaElementName: org.ericsson.policy.clamp.acm.AutomationCompositionElement
+  toscaCompositionName: org.ericsson.policy.clamp.acm.AutomationComposition
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - "all"
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1002
+
+mainSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - "all"
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 102
+
+dst:
+  service:
+    name: eric-dst-collector
+  enabled: true
+  sampling:
+    probability: "1.0"
+  producer:
+    type: B3,W3C,B3_MULTI
+  collector:
+    protocol: grpc
+    host: "http://eric-dst-collector"
+    portOtlpGrpc: 4317
+    portOtlpHttp: 4318
+    portJaegerGrpc: 14250
+
+applicationName: acm-r
+timeout: 200000
+# This is for testing only
+waitForStrimzi: false
+
+dbmigrator:
+  schema: clampacm
+  policy-home: "/opt/app/policy"
